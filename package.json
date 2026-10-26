@@ -1,0 +1,42 @@
+{
+  "name": "relayguard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Policy-gated Mezo MUSD merchant checkout and x402 paid API.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "npm run build:browser && tsc -p tsconfig.json",
+    "build:browser": "esbuild src/x402/client.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=public/x402-client.js",
+    "start": "npm run build && node dist/src/server.js",
+    "dev": "npm run build && node dist/src/server.js",
+    "test": "npm run build && node --test",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.15.30",
+    "@types/qrcode": "^1.5.6",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
+    "@x402/express": "^2.28.0",
+    "dotenv": "^18.0.9",
+    "express": "^4.22.3",
+    "qrcode": "^1.5.4",
+    "viem": "^2.57.11"
+  },
+  "overrides": {
+    "zod": "4.6.6"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+.claude/
+skills-lock.json
+.vercel/
+supabase/.temp/
+coverage/
+.env.supabase.local
+.env.app.local
+.env.wallets.local

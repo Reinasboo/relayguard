@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0c1117">
+    <meta name="description" content="Accept MUSD payments from customers and software agents with RelayGuard.">
+    <link rel="icon" type="image/svg+xml" href="/relayguard-mark.svg">
+    <title>RelayGuard | MUSD payments, made practical</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail" id="rail">
+        <a class="brand" href="/" aria-label="RelayGuard home">
+          <img class="brand-mark" src="/relayguard-mark.svg" alt="">
+          <span>RelayGuard</span>
+        </a>
+        <div class="rail-label">WORKSPACE</div>
+        <a class="rail-link active" href="/" data-view="console"><span class="rail-icon">◈</span>Payments</a>
+        <a class="rail-link" href="#merchant" data-view="merchant"><span class="rail-icon">▣</span>Merchant</a>
+        <div class="rail-note">
+          <span class="live-dot"></span>
+          <div><strong>Mezo Testnet</strong><small>Chain ID 31611</small></div>
+        </div>
+        <div class="rail-foot">BITCOIN-NATIVE PAYMENTS<br><span>MUSD · BTC gas</span></div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="crumb">RelayGuard <span>/</span> Payment workspace</div>
+          <div class="network-chip"><span class="live-dot"></span><span id="network-label">Connecting to Mezo…</span></div>
+        </header>
+
+        <div id="console-view">
+        <section class="intro">
+          <div>
+            <div class="eyebrow">PAYMENT OPERATIONS</div>
+            <h1>Payments, governed by policy.</h1>
+            <p>Review payment requests, apply clear spending rules, and verify settlement on Mezo.</p>
+          </div>
+          <div class="intro-tag"><span class="shield">◇</span> POLICY-GATED EXECUTION</div>
+        </section>
+
+        <section class="stats" aria-label="Wallet status">
+          <article class="stat-card balance-card">
+            <div class="stat-heading"><span>WALLET BALANCE</span><span class="tiny-icon">₿</span></div>
+            <div class="stat-value" id="native-balance">— <small>BTC</small></div>
+            <div class="stat-sub" id="wallet-address">Loading wallet…</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-heading"><span>NETWORK</span><span class="status-pill" id="network-status">CHECKING</span></div>
+            <div class="stat-value compact" id="chain-name">Mezo Testnet</div>
+            <div class="stat-sub">Chain ID <span id="chain-id">—</span> · Block <span id="block-number">—</span></div>
+          </article>
+          <article class="stat-card hidden" id="musd-card">
+            <div class="stat-heading"><span>MUSD BALANCE</span><span class="tiny-icon">$</span></div>
+            <div class="stat-value" id="musd-balance">— <small>MUSD</small></div>
+            <div class="stat-sub" id="musd-contract">Verified testnet token contract</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-heading"><span>AUTHORIZATION LOG</span><span class="tiny-icon">⌁</span></div>
+            <div class="stat-value compact" id="audit-state">Verifying…</div>
+            <div class="stat-sub">Hash-linked audit events</div>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel payment-panel">
+            <div class="panel-heading">
+              <div><div class="eyebrow">NEW AGENT INTENT</div><h2>Request a payment</h2></div>
+              <span class="step-badge">01 / 03</span>
+            </div>
+            <div id="setup-notice" class="notice hidden"></div>
+            <form id="payment-form">
+              <div class="field-row">
+                <label class="field">Asset
+                  <select id="asset" name="asset">
+                    <option value="BTC">BTC · native testnet asset</option>
+                  </select>
+                </label>
+                <label class="field">Amount
+                  <div class="input-with-unit"><input id="amount" name="amount" inputmode="decimal" value="0.000001" autocomplete="off" required><span id="amount-unit">BTC</span></div>
+                  <small class="field-help">Human-readable asset units. Limits are checked in exact base units.</small>
+                </label>
+              </div>
+              <label class="field">Approved recipient
+                <select id="recipient" name="recipient" required>
+                  <option value="">Loading policy allowlist…</option>
+                </select>
+                <small class="field-help">Only destinations explicitly allowlisted by the operator can pass policy.</small>
+              </label>
+              <label class="field">Purpose
+                <input id="purpose" name="purpose" maxlength="200" value="Mezo payment" required>
+              </label>
+              <div class="policy-summary">
+                <div class="summary-icon">✓</div>
+                <div><strong>Deterministic policy checks</strong><small>Recipient · transaction cap · daily cap · human approval threshold</small></div>
+                <span class="policy-lock">ENFORCED</span>
+              </div>
+              <button id="request-button" class="button button-primary" type="submit"><span>Check policy &amp; prepare</span><span>→</span></button>
+              <p class="form-footnote">This step does not send funds. You review and explicitly execute only after the policy decision.</p>
+            </form>
+          </article>
+
+          <article class="panel workflow-panel">
+            <div class="panel-heading">
+              <div><div class="eyebrow">CONTROL &amp; SETTLEMENT</div><h2>Payment journey</h2></div>
+              <span class="workflow-mark">RG</span>
+            </div>
+            <div class="timeline">
+              <div class="timeline-step active" id="step-intent"><div class="timeline-marker">1</div><div><strong>Agent proposes</strong><small>Payment intent is validated</small></div><span class="step-state">READY</span></div>
+              <div class="timeline-step" id="step-policy"><div class="timeline-marker">2</div><div><strong>Policy decides</strong><small>Limits and recipients checked</small></div><span class="step-state">WAITING</span></div>
+              <div class="timeline-step" id="step-human"><div class="timeline-marker">3</div><div><strong>Human review</strong><small>Approval when threshold requires it</small><span class="inline-status" id="human-status"></span></div></div>
+              <div class="timeline-step" id="step-submit"><div class="timeline-marker">4</div><div><strong>Explicit execution</strong><small>Authorized signer submits to Mezo</small></div></div>
+              <div class="timeline-step" id="step-verify"><div class="timeline-marker">5</div><div><strong>Receipt verified</strong><small>Success only after RPC evidence</small></div></div>
+            </div>
+            <div class="security-note"><span class="security-icon">◈</span><p><strong>The agent never approves its own payment.</strong><br>Submission and settlement are separate states. A transaction hash alone is not proof of payment.</p></div>
+          </article>
+        </section>
+
+        <section class="lower-grid">
+          <article class="panel activity-panel">
+            <div class="panel-heading">            <div><div class="eyebrow">PAYMENT ACTIVITY</div><h2>Current transaction</h2></div><span id="payment-status" class="status-pill muted">NO REQUEST</span></div>
+            <div id="transaction-empty" class="empty-state"><div class="empty-orbit">◈</div><strong>Ready for a payment intent</strong><span>Policy decisions and verified evidence appear here.</span></div>
+            <div id="transaction-details" class="transaction-details hidden"></div>
+            <div id="action-area" class="action-area hidden"></div>
+          </article>
+          <article class="panel audit-panel">
+            <div class="panel-heading"><div><div class="eyebrow">TAMPER-EVIDENT RECORD</div><h2>Audit trail</h2></div><button id="refresh-audit" class="icon-button" aria-label="Refresh audit trail">↻</button></div>
+            <div id="audit-events" class="audit-events"><div class="audit-empty">No recorded decisions yet.</div></div>
+          </article>
+        </section>
+        </div>
+
+        <section id="merchant-view" class="hidden">
+          <section class="intro">
+            <div>
+              <div class="eyebrow">MUSD COMMERCE</div>
+              <h1>One payment layer.<br>Customers and agents.</h1>
+              <p>Accept MUSD in person, online, or from software agents—with one merchant wallet and verifiable settlement.</p>
+            </div>
+            <div class="merchant-hero-visual" aria-hidden="true">
+              <div class="hero-orbit hero-orbit-one"></div><div class="hero-orbit hero-orbit-two"></div>
+              <div class="hero-token"><span class="hero-token-mark">$</span><span><strong>MUSD</strong><small>ON MEZO</small></span></div>
+              <div class="hero-route"><span></span><span></span><span></span></div>
+              <div class="hero-settlement"><span class="hero-settlement-check">✓</span><span><strong>One merchant destination</strong><small>One wallet · two payment paths</small></span></div>
+            </div>
+          </section>
+          <div class="merchant-callout">
+            <div class="callout-icon">↗</div>
+            <div><strong>Built for both sides of the transaction</strong><p>Share an exact MUSD invoice by link or QR, or monetize an API with x402. Customers sign with their wallet; agent payments settle through the Mezo facilitator.</p></div>
+          </div>
+          <article class="panel auth-panel">
+            <div class="panel-heading"><div><div class="eyebrow">MERCHANT WORKSPACE</div><h2>Account access</h2></div><span class="workflow-mark">01</span></div>
+            <p class="auth-copy">Manage invoices and payment activity from your merchant account. Customers can pay through a shared checkout without signing in.</p>
+            <form id="merchant-auth-form" class="auth-form" autocomplete="off">
+              <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
+              <label>Password<input id="auth-password" type="password" minlength="8" autocomplete="current-password" required></label>
+              <div class="auth-actions"><button class="button button-primary" type="submit">Sign in</button><button id="auth-signup" class="button button-quiet" type="button">Create account</button></div>
+            </form>
+            <div id="auth-state" class="notice">Connecting account…</div>
+            <div class="auth-session-actions"><button id="auth-signout" class="button button-quiet hidden" type="button">Sign out</button></div>
+          </article>
+          <section class="merchant-grid">
+            <article class="panel create-invoice-panel">
+              <div class="panel-heading"><div><div class="eyebrow">CUSTOMER CHECKOUT</div><h2>Create an invoice</h2></div><span class="workflow-mark">02</span></div>
+              <div class="merchant-profile"><div class="merchant-avatar"><img src="/relayguard-mark.svg" alt=""></div><div><strong id="merchant-name">Loading merchant…</strong><small id="merchant-address">Checking receiving wallet</small></div><span class="verified-tag">MEZO MUSD</span></div>
+              <form id="invoice-form">
+                <label class="field">Description
+                  <input id="invoice-description" maxlength="120" value="Coffee and pastry" required>
+                </label>
+                <div class="field-row">
+                  <label class="field">Price
+                    <div class="input-with-unit"><input id="invoice-amount" inputmode="decimal" value="2.50" autocomplete="off" required><span>MUSD</span></div>
+                    <small class="field-help">The customer reviews and signs the exact amount in their wallet.</small>
+                  </label>
+                  <label class="field">Link expiry
+                    <select id="invoice-expiry">
+                      <option value="1">1 hour</option><option value="24" selected>24 hours</option><option value="72">3 days</option><option value="168">7 days</option>
+                    </select>
+                  </label>
+                </div>
+                <button id="invoice-button" class="button button-primary" type="submit"><span>Create invoice</span><span>→</span></button>
+              </form>
+              <div id="created-invoice" class="created-invoice hidden"></div>
+            </article>
+            <article class="panel invoice-list-panel">
+              <div class="panel-heading"><div><div class="eyebrow">PAYMENT ACTIVITY</div><h2>Recent invoices</h2></div><button id="refresh-invoices" class="icon-button" aria-label="Refresh invoices">↻</button></div>
+              <div id="invoice-list" class="invoice-list"><div class="audit-empty">Loading merchant invoices…</div></div>
+            </article>
+          </section>
+          <div class="merchant-note"><span class="merchant-note-icon">i</span><span>Payments are made in MUSD on Mezo Testnet. The buyer reviews and authorizes each transfer in their own wallet.</span></div>
+          <article class="panel x402-panel">
+            <div class="panel-heading"><div><div class="eyebrow">AGENT CHECKOUT · x402</div><h2>Monetize an API resource</h2></div><span class="workflow-mark">03</span></div>
+            <p class="auth-copy">Let software agents access a protected resource with an exact MUSD payment. The Mezo facilitator verifies and settles the payment to your receiving wallet.</p>
+            <div class="x402-endpoint"><span><small>PROTECTED ENDPOINT</small><code id="x402-endpoint"></code></span><button id="copy-x402-endpoint" class="button button-quiet" type="button">Copy URL</button></div>
+            <div class="x402-actions"><button id="pay-x402-resource" class="button button-primary" type="button">Connect wallet &amp; access resource</button><span id="x402-price" class="status-pill pending">Loading price…</span></div>
+            <p class="x402-gas-note">If required, your wallet will request an exact MUSD approval first; that approval transaction uses BTC for gas. The facilitator handles gas for the MUSD settlement.</p>
+            <pre id="x402-result" class="x402-result hidden" role="status" aria-live="polite"></pre>
+          </article>
+        </section>
+
+        <section id="checkout-view" class="checkout-view hidden">
+          <a class="brand checkout-brand" href="/"><img class="brand-mark" src="/relayguard-mark.svg" alt=""><span>RelayGuard</span></a>
+          <div class="checkout-card panel">
+            <div class="checkout-topline"><span class="eyebrow">MUSD PAYMENT</span><span id="checkout-state-tag" class="verified-tag">AWAITING PAYMENT</span></div>
+            <div id="checkout-loading" class="empty-state"><div class="empty-orbit">◈</div><strong>Loading invoice</strong><span>Retrieving payment details from Mezo.</span></div>
+            <div id="checkout-content" class="hidden">
+              <div class="checkout-merchant"><span class="merchant-avatar">M</span><div><small>PAYING</small><strong id="checkout-merchant-name"></strong></div></div>
+              <div class="checkout-amount" id="checkout-amount"></div>
+              <div class="checkout-description" id="checkout-description"></div>
+              <div class="checkout-qr-wrap"><img id="checkout-qr" alt="QR code for this MUSD checkout"><small>Scan with a wallet to open this invoice</small></div>
+              <div class="checkout-facts"><div><span>Network</span><strong>Mezo Testnet</strong></div><div><span>Asset</span><strong>MUSD · ERC-20</strong></div><div><span>Merchant</span><code id="checkout-merchant-address"></code></div><div><span>Expires</span><strong id="checkout-expiry"></strong></div></div>
+              <div id="checkout-wallet-state" class="notice">Connect a Mezo-compatible wallet to check your MUSD balance and pay.</div>
+              <button id="connect-pay-button" class="button button-primary" type="button">Connect wallet &amp; pay with MUSD</button>
+              <div id="checkout-result" class="hidden"></div>
+              <a class="borrow-guide" href="https://mezo.org/docs/users/borrow/mint-musd/" target="_blank" rel="noreferrer noopener">Learn about MUSD on Mezo ↗</a>
+            </div>
+          </div>
+          <p class="checkout-footnote">You’ll review this payment in your wallet. The merchant is notified after the Mezo transaction is verified.</p>
+        </section>
+
+        <footer class="footer" id="footer"><span>RelayGuard · MUSD commerce on Mezo</span><span>Mezo Testnet · Chain ID 31611</span></footer>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

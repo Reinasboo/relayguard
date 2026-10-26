@@ -947,7 +947,7 @@ if (x402Enabled) {
             payTo: getAddress(x402PayTo),
             maxTimeoutSeconds: 60
           },
-          description: `RelayGuard protected resource — pay ${x402Price} in MUSD`,
+          description: `Unlock the Mezo MUSD Agent Integration Brief — pay ${x402Price} in MUSD`,
           mimeType: "application/json"
         }
       },

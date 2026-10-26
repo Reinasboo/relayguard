@@ -20,11 +20,11 @@ Vercel can host the frontend once a reachable API and durable database are avail
 
 ## Supabase CLI, Auth, and database
 
-- Supabase CLI `2.122.0` runs through `npx supabase`, and local project metadata points to the Supabase project `relayguard`. The CLI is not authenticated in the current environment; re-authenticate before inspecting or applying remote migrations.
+- Supabase CLI `2.122.0` runs through `npx supabase`; authentication is active and the linked `relayguard` project is healthy.
 - The Supabase email provider is enabled and local callback URLs (`127.0.0.1:4173` and `localhost:4173`) are allowlisted.
 - The publishable client key is local-only in `.env.app.local`. No service-role key is installed or used by browser code.
-- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices. A dry-run succeeded, but applying it timed out while connecting to the remote database.
-- To retry, add `SUPABASE_DB_PASSWORD=...` to ignored `.env.supabase.local`, then run `.\scripts\supabase.ps1 db push --linked`. Never put the password or PAT into chat or source control.
+- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices. The authenticated remote dry run confirms this migration is pending; apply requires the database password, which is not configured in the ignored `.env.supabase.local`.
+- To apply, add `SUPABASE_DB_PASSWORD=...` to ignored `.env.supabase.local`, then run `.\scripts\supabase.ps1 db push --linked`. Never put the password or PAT into chat or source control.
 - Even after migration, the server still needs a Supabase/Postgres invoice repository before it can claim hosted persistence. Current records remain in SQLite.
 
 ## Wallet state and payment evidence

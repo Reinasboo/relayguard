@@ -954,6 +954,17 @@ app.use(async (req: Request, res: Response) => {
       return;
     }
     const url = new URL(req.url ?? "/", `http://${hostHeader || `${host}:${port}`}`);
+    const relayguardPath = process.env.VERCEL
+      ? url.searchParams.get("__relayguard_path")
+      : null;
+    if (relayguardPath) {
+      if (!/^\/(?:api|pay)\//.test(relayguardPath)) {
+        response(res, 400, { error: "Invalid routed request path." });
+        return;
+      }
+      url.pathname = relayguardPath;
+      url.searchParams.delete("__relayguard_path");
+    }
     const paymentPath =
       process.env.VERCEL && url.pathname.startsWith("/api/pay/")
         ? url.pathname.slice("/api".length)
@@ -995,9 +1006,11 @@ app.use(async (req: Request, res: Response) => {
     res.end(content);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected server error.";
-    const status = message.includes("JSON") || message.includes("required") || message.includes("invalid") || message.includes("greater") || message.includes("Supported") || message.includes("Request body")
-      ? 400
-      : 500;
+    const status = message.toLowerCase().includes("not found")
+      ? 404
+      : message.includes("JSON") || message.includes("required") || message.includes("invalid") || message.includes("greater") || message.includes("Supported") || message.includes("Request body")
+        ? 400
+        : 500;
     console.error("RelayGuard request failed:", message);
     if (!res.headersSent) {
       response(res, status, { error: message });

@@ -8,8 +8,12 @@
   },
   "rewrites": [
     {
+      "source": "/api/:route/:path+",
+      "destination": "/api/config?__relayguard_path=/api/:route/:path*"
+    },
+    {
       "source": "/pay/:path*",
-      "destination": "/api/pay/:path*"
+      "destination": "/api/config?__relayguard_path=/pay/:path*"
     }
   ]
 }

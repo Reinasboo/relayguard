@@ -74,6 +74,7 @@ const publicClient = createPublicClient({
   chain: mezoTestnet,
   transport: http(rpcUrl)
 });
+let musdDetailsPromise: Promise<{ decimals: number; tokenAddress: Address }> | undefined;
 const erc20ReadAbi = [
   {
     type: "function",
@@ -212,15 +213,23 @@ async function assetDetails(asset: string): Promise<{ decimals: number; tokenAdd
   if (!tokenAddress || !isAddress(tokenAddress)) {
     throw new Error("MUSD is unavailable: set MEZO_TOKEN_ADDRESS to the verified Mezo testnet MUSD contract.");
   }
-  const address = getAddress(tokenAddress);
-  const [symbol, decimals] = await Promise.all([
-    publicClient.readContract({ address, abi: erc20ReadAbi, functionName: "symbol" }),
-    publicClient.readContract({ address, abi: erc20ReadAbi, functionName: "decimals" })
-  ]);
-  if (symbol.toUpperCase() !== "MUSD") {
-    throw new Error(`Configured token contract reports symbol '${symbol}', not MUSD.`);
+  if (!musdDetailsPromise) {
+    const address = getAddress(tokenAddress);
+    const details = Promise.all([
+      publicClient.readContract({ address, abi: erc20ReadAbi, functionName: "symbol" }),
+      publicClient.readContract({ address, abi: erc20ReadAbi, functionName: "decimals" })
+    ]).then(([symbol, decimals]) => {
+      if (symbol.toUpperCase() !== "MUSD") {
+        throw new Error(`Configured token contract reports symbol '${symbol}', not MUSD.`);
+      }
+      return { decimals, tokenAddress: address };
+    });
+    musdDetailsPromise = details.catch((error: unknown) => {
+      musdDetailsPromise = undefined;
+      throw error;
+    });
   }
-  return { decimals, tokenAddress: address };
+  return musdDetailsPromise;
 }
 
 function localOriginAllowed(req: IncomingMessage): boolean {
@@ -609,6 +618,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const invoiceVerifyMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/verify$/);
   if (req.method === "POST" && invoiceVerifyMatch) {
     const invoice = await checkout.get(decodeURIComponent(invoiceVerifyMatch[1] ?? ""));
+    if (invoice.status === "paid" || invoice.status === "failed") {
+      response(res, 200, { invoice, message: `Invoice is already ${invoice.status}.` });
+      return;
+    }
     if (invoice.status !== "submitted" || !invoice.authorizationId || !invoice.transactionReference) {
       response(res, 409, { error: `Invoice cannot be verified from state '${invoice.status}'.` });
       return;

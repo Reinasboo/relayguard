@@ -9,6 +9,7 @@ let currentHash;
 let checkoutInvoice;
 let checkoutAuthorization;
 let checkoutWallet;
+let checkoutVerificationInProgress = false;
 let appConfig;
 let authSession;
 
@@ -95,11 +96,28 @@ async function api(path, options = {}) {
       renderAuthState("Your merchant session expired. Sign in again to continue.");
     }
   }
-  const body = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const message = (await response.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+    const error = new Error(message
+      ? `Server returned HTTP ${response.status} instead of JSON: ${message}`
+      : `Server returned HTTP ${response.status} without a JSON response.`);
+    error.status = response.status;
+    throw error;
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    const error = new Error(`Server returned invalid JSON (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
   if (!response.ok && response.status !== 202) {
     const error = new Error(body.error || "The request could not be completed.");
     error.code = body.code;
     error.details = body;
+    error.status = response.status;
     throw error;
   }
   return { status: response.status, body };
@@ -726,7 +744,7 @@ async function loadCheckoutPage() {
       byId("connect-pay-button").textContent = checkoutInvoice.status === "paid"
         ? "Payment confirmed"
         : checkoutInvoice.status === "submitted"
-          ? "Payment processing"
+          ? "Check payment status"
           : checkoutInvoice.status === "expired"
             ? "Invoice expired"
             : "Payment unavailable";
@@ -736,7 +754,16 @@ async function loadCheckoutPage() {
         byId("checkout-result").classList.remove("hidden");
       }
     }
-    byId("connect-pay-button").addEventListener("click", payCheckout);
+    byId("connect-pay-button").addEventListener("click", () => {
+      if (checkoutInvoice.status === "submitted") {
+        void pollCheckoutInvoice();
+      } else if (checkoutInvoice.status === "open") {
+        void payCheckout();
+      }
+    });
+    if (checkoutInvoice.status === "submitted") {
+      void pollCheckoutInvoice();
+    }
     if (!merchantBody.tokenAddress) {
       byId("connect-pay-button").disabled = true;
       byId("checkout-wallet-state").textContent = "MUSD contract is not configured for this Mezo testnet.";
@@ -776,6 +803,71 @@ function setCheckoutMessage(message, kind = "notice") {
   const target = byId("checkout-result");
   target.className = kind;
   target.textContent = message;
+}
+
+function markCheckoutPaid(transactionHash) {
+  const status = byId("checkout-state-tag");
+  status.textContent = "PAYMENT CONFIRMED";
+  status.className = "verified-tag checkout-status success";
+  byId("checkout-wallet-state").textContent = "Payment confirmed by Mezo Testnet.";
+  byId("checkout-wallet-state").className = "success-message";
+  byId("connect-pay-button").textContent = "Payment confirmed";
+  byId("connect-pay-button").disabled = true;
+  setCheckoutMessage(`MUSD payment settled. Transaction: ${transactionHash}`, "success-message");
+  byId("checkout-result").classList.remove("hidden");
+}
+
+async function pollCheckoutInvoice() {
+  if (checkoutVerificationInProgress || checkoutInvoice?.status !== "submitted") return;
+  checkoutVerificationInProgress = true;
+  const button = byId("connect-pay-button");
+  button.disabled = true;
+  button.textContent = "Verifying payment…";
+  const transactionHash = checkoutInvoice.transactionReference;
+  let attempt = 0;
+  try {
+    while (checkoutInvoice.status === "submitted") {
+      try {
+        const verified = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/verify`, { method: "POST" });
+        checkoutInvoice = verified.body.invoice;
+        if (checkoutInvoice.status === "paid") {
+          markCheckoutPaid(transactionHash);
+          return;
+        }
+        if (checkoutInvoice.status === "failed") {
+          const status = byId("checkout-state-tag");
+          status.textContent = "PAYMENT FAILED";
+          status.className = "verified-tag checkout-status danger";
+          byId("checkout-wallet-state").textContent = "Mezo could not verify the exact MUSD transfer for this invoice.";
+          byId("checkout-wallet-state").className = "danger";
+          button.textContent = "Payment failed";
+          button.disabled = true;
+          setCheckoutMessage("Payment verification failed. Contact the merchant before attempting another payment.", "error");
+          byId("checkout-result").classList.remove("hidden");
+          return;
+        }
+        byId("checkout-wallet-state").textContent = attempt < 20
+          ? `Payment submitted. Waiting for Mezo confirmation (${attempt + 1}/20)…`
+          : "Payment submitted. Still checking Mezo for confirmation; do not pay again.";
+      } catch (error) {
+        if (error.status && error.status < 500 && error.status !== 429) {
+          byId("checkout-wallet-state").textContent = `Could not verify this invoice (HTTP ${error.status}): ${error.message}`;
+          setCheckoutMessage("The transaction was submitted. Do not pay again; contact the merchant if this persists.", "error");
+          byId("checkout-result").classList.remove("hidden");
+          return;
+        }
+        byId("checkout-wallet-state").textContent = `Verification temporarily unavailable; retrying automatically. Do not pay again. ${error.message}`;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, attempt < 20 ? 750 : 2500));
+      attempt += 1;
+    }
+  } finally {
+    checkoutVerificationInProgress = false;
+    if (checkoutInvoice?.status === "submitted") {
+      button.disabled = false;
+      button.textContent = "Check payment status";
+    }
+  }
 }
 
 async function payCheckout() {
@@ -824,27 +916,8 @@ async function payCheckout() {
     });
     checkoutInvoice = submittedBody.invoice;
     byId("checkout-wallet-state").textContent = `Submitted ${shortAddress(transactionHash)}. Waiting for the chain receipt…`;
-    for (let attempt = 0; attempt < 15; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, 2000));
-      const verified = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/verify`, { method: "POST" });
-      checkoutInvoice = verified.body.invoice;
-      if (checkoutInvoice.status === "paid") {
-        const status = byId("checkout-state-tag");
-        status.textContent = "PAYMENT CONFIRMED";
-        status.className = "verified-tag checkout-status success";
-        byId("checkout-wallet-state").textContent = "Payment confirmed by Mezo Testnet.";
-        byId("checkout-wallet-state").className = "success-message";
-        byId("connect-pay-button").textContent = "Payment confirmed";
-        setCheckoutMessage(`MUSD payment settled. Transaction: ${transactionHash}`, "success-message");
-        byId("checkout-result").classList.remove("hidden");
-        return;
-      }
-      if (checkoutInvoice.status === "failed") {
-        throw new Error("Mezo receipt did not match the exact MUSD invoice.");
-      }
-    }
-    setCheckoutMessage(`Transaction submitted; receipt is still pending. Hash: ${transactionHash}`, "notice");
-    byId("checkout-result").classList.remove("hidden");
+    await pollCheckoutInvoice();
+    return;
   } catch (error) {
     if (broadcastHash && checkoutAuthorization) {
       try {

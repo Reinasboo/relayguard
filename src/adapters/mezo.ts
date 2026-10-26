@@ -2,7 +2,6 @@ import {
   createPublicClient,
   createWalletClient,
   decodeEventLog,
-  decodeFunctionData,
   http,
   isAddress,
   TransactionReceiptNotFoundError,
@@ -14,6 +13,10 @@ import type { PaymentIntent } from "../core/domain.js";
 import { BaseAdapter } from "./base.js";
 import type { AdapterResult, PreparedPayment, SettlementEvidence } from "./contract.js";
 
+const mezoTransferAbi = parseAbi([
+  "function transfer(address to, uint256 amount) returns (bool)"
+]);
+
 export interface MezoAdapterConfig {
   readonly rpcUrl?: string;
   readonly network?: "mainnet" | "testnet" | "mezo" | "mezoTestnet";
@@ -22,9 +25,6 @@ export interface MezoAdapterConfig {
   readonly tokenAddress?: string;
 }
 
-const mezoTransferAbi = parseAbi([
-  "function transfer(address to, uint256 amount) returns (bool)"
-]);
 const erc20TransferEventAbi = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 value)"
 ]);
@@ -61,6 +61,56 @@ async function readSettlementEvidence(
       };
     }
 
+    const tokenAddress = config.tokenAddress;
+    if (tokenAddress && receipt.to?.toLowerCase() === tokenAddress.toLowerCase()) {
+      let transfer: { readonly to: string; readonly value: bigint } | undefined;
+      for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== tokenAddress.toLowerCase()) continue;
+        try {
+          const event = decodeEventLog({
+            abi: erc20TransferEventAbi,
+            data: log.data,
+            topics: log.topics
+          });
+          if (
+            event.eventName === "Transfer" &&
+            event.args.from.toLowerCase() === receipt.from.toLowerCase()
+          ) {
+            transfer = event.args;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+      if (!transfer) {
+        return {
+          supported: true,
+          value: {
+            state: "failed",
+            reference,
+            observedAt: Date.now(),
+            source: `${chain.name} MUSD Transfer event`,
+            asset: "MUSD",
+            sender: receipt.from
+          }
+        };
+      }
+      return {
+        supported: true,
+        value: {
+          state: "confirmed",
+          reference,
+          observedAt: Date.now(),
+          source: `${chain.name} MUSD Transfer event`,
+          asset: "MUSD",
+          sender: receipt.from,
+          recipient: transfer?.to,
+          amountAtomic: transfer?.value.toString()
+        }
+      };
+    }
+
     const transaction = await publicClient.getTransaction({ hash });
     if (!transaction.to) {
       return {
@@ -71,58 +121,6 @@ async function readSettlementEvidence(
           observedAt: Date.now(),
           source: `${chain.name} receipt`,
           asset: "unknown"
-        }
-      };
-    }
-
-    const tokenAddress = config.tokenAddress;
-    if (tokenAddress && transaction.to.toLowerCase() === tokenAddress.toLowerCase()) {
-      const decoded = decodeFunctionData({
-        abi: mezoTransferAbi,
-        data: transaction.input
-      });
-      if (decoded.functionName !== "transfer") {
-        return {
-          supported: true,
-          value: {
-            state: "failed",
-            reference,
-            observedAt: Date.now(),
-            source: `${chain.name} MUSD transfer verification`,
-            asset: "MUSD"
-          }
-        };
-      }
-      const [callRecipient, callAmount] = decoded.args;
-      const matchingLog = receipt.logs.find((log) => {
-        if (log.address.toLowerCase() !== tokenAddress.toLowerCase()) return false;
-        try {
-          const event = decodeEventLog({
-            abi: erc20TransferEventAbi,
-            data: log.data,
-            topics: log.topics
-          });
-          return (
-            event.eventName === "Transfer" &&
-            event.args.from.toLowerCase() === transaction.from.toLowerCase() &&
-            event.args.to.toLowerCase() === callRecipient.toLowerCase() &&
-            event.args.value === callAmount
-          );
-        } catch {
-          return false;
-        }
-      });
-      return {
-        supported: true,
-        value: {
-          state: matchingLog ? "confirmed" : "failed",
-          reference,
-          observedAt: Date.now(),
-          source: `${chain.name} MUSD Transfer event`,
-          asset: "MUSD",
-          sender: transaction.from,
-          recipient: callRecipient,
-          amountAtomic: callAmount.toString()
         }
       };
     }

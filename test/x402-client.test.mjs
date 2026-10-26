@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ensurePermit2Allowance } from "../public/x402-client.js";
+import { recoverTypedDataAddress } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { createEip1193Signer, ensurePermit2Allowance } from "../public/x402-client.js";
 
 const payer = "0x840E5bBF20D725f581752f8A4021ADd730550d47";
 const token = "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503";
@@ -16,6 +18,57 @@ const requirements = {
     extra: { assetTransferMethod: "permit2" }
   }]
 };
+
+test("x402 signs Permit2 typed data through viem's EIP-1193 serializer", async () => {
+  const account = privateKeyToAccount(`0x${"1".repeat(64)}`);
+  const signingRequests = [];
+  const provider = {
+    async request(request) {
+      if (request.method !== "eth_signTypedData_v4") {
+        throw new Error(`Unexpected wallet method: ${request.method}`);
+      }
+      const [address, serialized] = request.params;
+      signingRequests.push({ address, serialized });
+      return account.signTypedData(JSON.parse(serialized));
+    }
+  };
+  const typedData = {
+    domain: { name: "Permit2", chainId: 31611, verifyingContract: permit2 },
+    types: {
+      PermitWitnessTransferFrom: [
+        { name: "permitted", type: "TokenPermissions" },
+        { name: "spender", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint256" },
+        { name: "witness", type: "Witness" }
+      ],
+      TokenPermissions: [
+        { name: "token", type: "address" },
+        { name: "amount", type: "uint256" }
+      ],
+      Witness: [
+        { name: "to", type: "address" },
+        { name: "validAfter", type: "uint256" }
+      ]
+    },
+    primaryType: "PermitWitnessTransferFrom",
+    message: {
+      permitted: { token, amount: BigInt(amount) },
+      spender: permit2,
+      nonce: 1n,
+      deadline: 2n,
+      witness: { to: payer, validAfter: 0n }
+    }
+  };
+  const signer = createEip1193Signer(provider, account.address);
+  const signature = await signer.signTypedData(typedData);
+  const rpcData = JSON.parse(signingRequests[0].serialized);
+  const recovered = await recoverTypedDataAddress({ ...rpcData, signature });
+
+  assert.equal(signingRequests[0].address, account.address);
+  assert.equal(rpcData.primaryType, "PermitWitnessTransferFrom");
+  assert.equal(recovered, account.address);
+});
 
 test("x402 requests only the exact MUSD Permit2 allowance and verifies confirmation", async () => {
   const calls = [];

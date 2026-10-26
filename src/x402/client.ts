@@ -2,7 +2,8 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import type { ClientEvmSigner } from "@x402/evm";
 import { x402Client } from "@x402/core/client";
 import { x402HTTPClient } from "@x402/core/http";
-import { getAddress } from "viem";
+import { createWalletClient, custom, getAddress, type TypedDataDefinition } from "viem";
+import { mezoTestnet } from "viem/chains";
 
 type Eip1193Provider = {
   request(args: { method: string; params?: readonly unknown[] }): Promise<unknown>;
@@ -45,6 +46,30 @@ async function ensureMezoTestnet(provider: Eip1193Provider): Promise<void> {
       }]
     });
   }
+  const switchedChainId = await provider.request({ method: "eth_chainId" });
+  if (String(switchedChainId).toLowerCase() !== "0x7b7b") {
+    throw new Error("Your wallet is not connected to Mezo Testnet. Switch networks and try again.");
+  }
+}
+
+export function createEip1193Signer(
+  provider: Eip1193Provider,
+  address: `0x${string}`
+): ClientEvmSigner {
+  const walletClient = createWalletClient({
+    account: address,
+    chain: mezoTestnet,
+    transport: custom({
+      request: (args) => provider.request(args)
+    })
+  });
+
+  return {
+    address,
+    async signTypedData(typedData) {
+      return walletClient.signTypedData(typedData as TypedDataDefinition);
+    }
+  };
 }
 
 export async function ensurePermit2Allowance(
@@ -145,22 +170,7 @@ export async function payForRelayguardResource(
     throw new Error("Wallet did not return a connected account.");
   }
   const address = getAddress(accounts[0]);
-  const signer: ClientEvmSigner = {
-    address,
-    async signTypedData(typedData) {
-      const serialized = JSON.stringify(typedData, (_key, value: unknown) =>
-        typeof value === "bigint" ? value.toString() : value
-      );
-      const signature = await provider.request({
-        method: "eth_signTypedData_v4",
-        params: [address, serialized]
-      });
-      if (typeof signature !== "string" || !/^0x[0-9a-fA-F]+$/.test(signature)) {
-        throw new Error("Wallet returned an invalid typed-data signature.");
-      }
-      return signature as `0x${string}`;
-    }
-  };
+  const signer = createEip1193Signer(provider, address);
   const client = new x402HTTPClient(
     new x402Client().register(network, new ExactEvmScheme(signer))
   );

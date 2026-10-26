@@ -14,7 +14,7 @@ The app currently binds to loopback and stores invoice/authorization/audit data 
 
 ## Vercel deployment assessment
 
-Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project has been created and linked. A static-only deployment of `public/` is not a working RelayGuard deployment: the browser app requires same-origin `/api/config`, `/api/health`, invoice, authorization, and x402 routes, while checkout links must resolve to server-side invoice state. Those routes currently run in the local Express server and use SQLite; no public API origin or deployment is configured.
+Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project is created, linked, and connected to the GitHub repository. A static-only deployment of `public/` is not a working RelayGuard deployment: the browser app requires same-origin `/api/config`, `/api/health`, invoice, authorization, and x402 routes, while checkout links must resolve to server-side invoice state. Those routes currently run in the local Express server and use SQLite; no public API origin or deployment is configured.
 
 Vercel can host the frontend once a reachable API and durable database are available. Do not deploy the current UI as if checkout were live, or expose the local SQLite server as a public API. First choose and configure a production API/persistence architecture, then connect the Vercel frontend to that API and test invoice creation, buyer checkout, and x402 settlement on the deployed origins.
 

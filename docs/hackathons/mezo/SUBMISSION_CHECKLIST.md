@@ -12,12 +12,12 @@
 - [x] Run automated tests: 26 passing; TypeScript/browser checks pass; production dependency audit reports 0 vulnerabilities.
 - [x] Include the verified native BTC testnet transaction hash and receipt, clearly distinguished from MUSD checkout.
 - [x] Install Supabase CLI, authenticate, link the `relayguard` project, and successfully preview the database migration. Auth redirect URLs configured.
-- [ ] Apply the Supabase DB migration. The remote push timed out; put the DB password in ignored `.env.supabase.local` and retry.
+- [x] Apply the RLS-protected merchant profile and invoice migration to the linked Supabase project and verify remote migration history.
 - [x] Owner confirmed merchant account sign-in works.
 - [x] Complete a live testnet buyer invoice payment and verify the invoice state and matching on-chain receipt.
 - [x] Complete an x402 facilitator settlement with a funded test buyer and verify transaction evidence: `0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c`.
 - [x] Make the browser x402 client check Permit2 allowance, request only the exact MUSD approval when required, and verify its successful receipt and resulting allowance.
 - [ ] Manually verify browser-wallet signing in the merchant checkout and x402 UI with the demo buyer account.
-- [ ] Move invoice/authorization/audit persistence from local SQLite to Supabase Postgres before public deployment.
+- [ ] Wire invoice, authorization, and audit persistence to Supabase Postgres; the schema migration is applied, but the running API still uses local SQLite.
 - [ ] Create a secure public deployment only after completing auth/tenant isolation, HTTPS, persistence, and operations/key boundaries. Current demo is loopback-only.
 - [ ] Validate final buildathon rules, submission format, and demo reproducibility.

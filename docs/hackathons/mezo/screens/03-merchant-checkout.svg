@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="270" y1="0" x2="1510" y2="990" gradientUnits="userSpaceOnUse"><stop stop-color="#111B25"/><stop offset="1" stop-color="#0B1117"/></linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="matrix(0 360 -470 0 800 430)" gradientUnits="userSpaceOnUse"><stop stop-color="#23382A"/><stop offset="1" stop-color="#0D151B" stop-opacity="0"/></radialGradient>
+    <style>.sans{font-family:Inter,"Segoe UI",Arial,sans-serif}.mono{font-family:"SFMono-Regular",Consolas,monospace}.muted{fill:#8493A0}.text{fill:#E9EEF2}.lime{fill:#B9F36B}.line{stroke:#263541}</style>
+  </defs>
+  <rect width="1600" height="1000" rx="28" fill="#080D12"/><rect x="12" y="12" width="1576" height="976" rx="22" fill="url(#bg)" stroke="#26333D"/><circle cx="38" cy="37" r="6" fill="#FF766F"/><circle cx="59" cy="37" r="6" fill="#E9B95E"/><circle cx="80" cy="37" r="6" fill="#74C98B"/><rect x="629" y="25" width="342" height="24" rx="12" fill="#0C141B" stroke="#26333D"/><text x="800" y="41" text-anchor="middle" class="mono muted" font-size="10">relayguard.vercel.app/pay/rg-1042  ·  Secure checkout</text>
+  <rect x="13" y="62" width="1574" height="925" fill="url(#halo)"/>
+  <rect x="104" y="95" width="40" height="40" rx="13" fill="#B9F36B"/><path d="M124 102l10 4v7c0 7-4 11-10 14-6-3-10-7-10-14v-7l10-4Z" fill="#101C16"/><path d="M120 110h6a3 3 0 0 1 0 6h-6v-6Zm0 6v5m6-5 4 5" stroke="#B9F36B" stroke-width="1.8" stroke-linecap="round"/><text x="157" y="121" class="sans text" font-size="19" font-weight="650">RelayGuard <tspan fill="#667581" font-weight="400">/</tspan> Checkout</text>
+  <rect x="1355" y="100" width="142" height="33" rx="16" fill="#17221B" stroke="#31432C"/><circle cx="1374" cy="116" r="4" fill="#B9F36B"/><text x="1388" y="120" class="mono" fill="#D8EBC9" font-size="9">MEZO TESTNET</text>
+  <text x="800" y="215" text-anchor="middle" class="mono lime" font-size="10" letter-spacing="2">MUSD PAYMENT REQUEST  ·  INVOICE 1042</text>
+  <text x="800" y="266" text-anchor="middle" class="sans text" font-size="35" font-weight="650" letter-spacing="-1">A better way to settle.</text>
+  <text x="800" y="296" text-anchor="middle" class="sans muted" font-size="14">Bitcoin-native payments, verified on Mezo.</text>
+  <rect x="473" y="346" width="654" height="515" rx="22" fill="#111A22" stroke="#2C3B46"/>
+  <rect x="473" y="346" width="654" height="91" rx="22" fill="#15221B"/><path d="M473 415V437H1127V415" fill="#15221B"/>
+  <circle cx="527" cy="390" r="22" fill="#203225"/><text x="527" y="396" text-anchor="middle" class="sans lime" font-size="17" font-weight="700">R</text>
+  <text x="565" y="384" class="mono muted" font-size="9" letter-spacing="1.2">PAYING</text><text x="565" y="405" class="sans text" font-size="15" font-weight="600">Northstar Compute</text>
+  <text x="800" y="491" text-anchor="middle" class="sans text" font-size="54" font-weight="650" letter-spacing="-2">12.50 <tspan fill="#A8B4BE" font-size="20" font-weight="500">MUSD</tspan></text>
+  <text x="800" y="523" text-anchor="middle" class="sans muted" font-size="13">GPU inference · batch 4481</text>
+  <rect x="700" y="555" width="200" height="200" rx="14" fill="#F5F6F2"/>
+  <g fill="#111A17">
+    <path d="M715 570h48v48h-48zm7 7v34h34v-34z"/><path d="M729 584h20v20h-20z"/>
+    <path d="M837 570h48v48h-48zm7 7v34h34v-34z"/><path d="M851 584h20v20h-20z"/>
+    <path d="M715 692h48v48h-48zm7 7v34h34v-34z"/><path d="M729 706h20v20h-20z"/>
+    <path d="M774 570h9v9h-9zm18 0h9v18h-9zm-18 18h18v9h-18zm27 9h9v18h-9zm-27 9h9v9h-9zm9 18h18v9h-18zm27 0h9v18h-9zm-36 18h9v9h-9zm18 0h9v18h-9zm18 18h9v9h-9zm-36 9h18v9h-18z"/>
+    <path d="M774 623h9v9h-9zm18 0h18v9h-18zm27 9h9v9h-9zm-45 18h18v9h-18zm27 0h9v18h-9zm18 18h18v9h-18zm-27 9h9v9h-9z"/>
+    <path d="M774 686h9v18h-9zm18 0h9v9h-9zm18 9h9v18h-9zm-36 18h18v9h-18zm27 9h18v9h-18zm27-27h9v9h-9z"/>
+  </g>
+  <text x="800" y="786" text-anchor="middle" class="sans text" font-size="12" font-weight="600">Scan to pay with MUSD</text>
+  <text x="800" y="807" text-anchor="middle" class="sans muted" font-size="10">Open this invoice in your wallet-enabled browser</text>
+  <path d="M511 829H1089" class="line"/>
+  <text x="511" y="849" class="mono muted" font-size="9">NETWORK</text><text x="1089" y="849" text-anchor="end" class="mono lime" font-size="9">MEZO TESTNET  ·  CHAIN 31611</text>
+  <rect x="473" y="880" width="654" height="52" rx="11" fill="#B9F36B"/><text x="800" y="912" text-anchor="middle" class="sans" fill="#101810" font-size="14" font-weight="700">Connect wallet &amp; pay with MUSD  →</text>
+  <text x="800" y="965" text-anchor="middle" class="sans muted" font-size="11">You’ll review the exact transfer in your wallet. The merchant is notified after Mezo verifies settlement.</text>
+  <text x="1537" y="969" text-anchor="end" class="mono muted" font-size="9">ILLUSTRATIVE PRODUCT SCREEN  /  03</text>
+</svg>

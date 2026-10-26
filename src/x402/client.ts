@@ -184,12 +184,31 @@ export async function payForRelayguardResource(
       ...client.encodePaymentSignatureHeader(payload)
     }
   });
-  const body: unknown = await paid.json();
+  const contentType = paid.headers.get("content-type") ?? "";
+  const body: unknown = contentType.includes("application/json")
+    ? await paid.json()
+    : await paid.text();
   if (!paid.ok) {
-    throw new Error(
+    const paymentResult = client.parsePaymentResult({
+      status: paid.status,
+      getHeader: (name) => paid.headers.get(name),
+      body
+    });
+    const protocolError = paymentResult.header
+      ? "success" in paymentResult.header
+        ? paymentResult.header.errorReason || paymentResult.header.errorMessage
+        : paymentResult.header.error
+      : undefined;
+    const bodyError =
       typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
         ? body.error
-        : `Payment was not accepted (HTTP ${paid.status}).`
+        : undefined;
+    throw new Error(
+      protocolError || bodyError ||
+        (typeof body === "string" && body.trim()
+          ? body.trim().slice(0, 240)
+          : undefined) ||
+        `Payment was not accepted (HTTP ${paid.status}).`
     );
   }
   const result = await client.processPaymentResult(

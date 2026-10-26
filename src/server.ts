@@ -917,6 +917,17 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
 const publicDirectory = resolve(process.cwd(), "public");
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
+app.use((req, _res, next) => {
+  const route = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`)
+    .searchParams.get("__relayguard_path");
+  if (route && /^\/(?:api|pay)\//.test(route)) {
+    req.url = route;
+    req.originalUrl = route;
+  }
+  next();
+});
 
 if (x402Enabled) {
   const facilitator = new HTTPFacilitatorClient({ url: x402FacilitatorUrl });

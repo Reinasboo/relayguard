@@ -39819,10 +39819,18 @@ async function payForRelayguardResource(endpoint, onProgress = () => void 0) {
       ...client.encodePaymentSignatureHeader(payload)
     }
   });
-  const body = await paid.json();
+  const contentType = paid.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json") ? await paid.json() : await paid.text();
   if (!paid.ok) {
+    const paymentResult = client.parsePaymentResult({
+      status: paid.status,
+      getHeader: (name) => paid.headers.get(name),
+      body
+    });
+    const protocolError = paymentResult.header ? "success" in paymentResult.header ? paymentResult.header.errorReason || paymentResult.header.errorMessage : paymentResult.header.error : void 0;
+    const bodyError = typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : void 0;
     throw new Error(
-      typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : `Payment was not accepted (HTTP ${paid.status}).`
+      protocolError || bodyError || (typeof body === "string" && body.trim() ? body.trim().slice(0, 240) : void 0) || `Payment was not accepted (HTTP ${paid.status}).`
     );
   }
   const result = await client.processPaymentResult(

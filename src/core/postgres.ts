@@ -10,6 +10,19 @@ const APPROVAL_TTL_MS = 10 * 60 * 1000;
 const TERMINAL_UNSPENT_STATES = ["denied", "failed", "cancelled", "expired"] as const;
 const ZERO_HASH = "0".repeat(64);
 
+function createPool(connectionString: string): Pool {
+  const url = new URL(connectionString);
+  for (const option of ["sslmode", "sslrootcert", "sslcert", "sslkey", "sslpassword", "uselibpqcompat"]) {
+    url.searchParams.delete(option);
+  }
+  const ca = process.env.SUPABASE_DB_CA_CERT;
+  return new Pool({
+    connectionString: url.toString(),
+    max: 1,
+    ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false }
+  });
+}
+
 function approvalTokenHash(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
@@ -131,11 +144,7 @@ export class PostgresAuthorizationService implements AuthorizationStore {
   private readyPromise: Promise<void>;
 
   constructor(connectionString: string) {
-    this.pool = new Pool({
-      connectionString,
-      max: 1,
-      ssl: { rejectUnauthorized: false }
-    });
+    this.pool = createPool(connectionString);
     this.readyPromise = this.verifyAuditChain().then((valid) => {
       if (!valid) {
         throw new Error("Authorization audit chain is invalid; refusing to use the database.");
@@ -400,11 +409,7 @@ export class PostgresCheckoutService implements CheckoutStore {
   private readonly pool: Pool;
 
   constructor(connectionString: string) {
-    this.pool = new Pool({
-      connectionString,
-      max: 1,
-      ssl: { rejectUnauthorized: false }
-    });
+    this.pool = createPool(connectionString);
   }
 
   async ready(): Promise<void> {

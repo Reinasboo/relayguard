@@ -70,7 +70,23 @@ h1 { margin: 8px 0 7px; font-size: clamp(27px, 3vw, 35px); font-weight: 600; }
 .x402-endpoint small { display: block; margin-bottom: 6px; color: #82909e; font: 9px "DM Mono", monospace; letter-spacing: 1px; }
 .x402-endpoint code { color: #d8e2ec; font: 11px "DM Mono", monospace; overflow-wrap: anywhere; }
 .x402-gas-note { margin: 10px 0 0; color: #84919e; font-size: 10px; line-height: 1.6; }
-.x402-result { margin: 15px 0 0; padding: 14px; border: 1px solid #2b3b2a; border-radius: 8px; color: #c8ecaa; background: #111b13; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 "DM Mono", monospace; }
+.x402-result { margin: 15px 0 0; padding: 18px; border: 1px solid #2b3b2a; border-radius: 10px; color: #c8ecaa; background: linear-gradient(145deg, #111b17, #10171c); overflow-wrap: anywhere; }
+.x402-result-progress { margin: 0; color: #c8ecaa; font: 11px/1.6 "DM Mono", monospace; }
+.x402-result-header { display: flex; align-items: center; gap: 12px; }
+.x402-result-check { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 1px solid #58733d; border-radius: 50%; color: #b9f36b; background: #1a2a1d; font-size: 18px; }
+.x402-result-header > div > span { color: #b9f36b; font: 9px "DM Mono", monospace; letter-spacing: 1px; }
+.x402-result-header h3 { margin: 4px 0 0; color: #edf2e9; font-size: 16px; }
+.x402-result-summary { max-width: 780px; margin: 12px 0 16px; color: #9eacaa; font-size: 11px; line-height: 1.65; }
+.x402-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.x402-result-item { min-width: 0; padding: 10px; border: 1px solid #293c32; border-radius: 7px; background: #0d1515; }
+.x402-result-item span { display: block; margin-bottom: 6px; color: #7d9188; font: 8px "DM Mono", monospace; letter-spacing: .8px; }
+.x402-result-item strong { display: block; color: #dce8dd; font: 10px/1.5 "DM Mono", monospace; overflow-wrap: anywhere; }
+.x402-result details { margin-top: 12px; border-top: 1px solid #26372e; padding-top: 10px; }
+.x402-result details summary { color: #b9c8bc; cursor: pointer; font-size: 10px; }
+.x402-result-steps, .x402-result-checklist { display: grid; gap: 7px; margin: 10px 0 2px; padding-left: 22px; color: #9eacaa; font-size: 10px; line-height: 1.6; }
+.x402-result-receipt { display: inline-block; margin-top: 16px; color: #b9f36b; font: 10px "DM Mono", monospace; text-decoration: none; overflow-wrap: anywhere; }
+.x402-result-receipt:hover { text-decoration: underline; }
+.x402-result-json { max-height: 320px; margin: 10px 0 0; padding: 12px; border: 1px solid #293c32; border-radius: 7px; color: #c8ecaa; background: #0b1115; white-space: pre-wrap; overflow: auto; font: 10px/1.6 "DM Mono", monospace; }
 .status-pill { display: inline-flex; align-items: center; border-radius: 20px; padding: 5px 8px; color: #b7f566; background: #263a20; font: 9px "DM Mono", monospace; letter-spacing: .4px; }
 .status-pill.muted { color: #8c9aa7; background: #212a33; }
 .status-pill.pending { color: #ffd093; background: #3d2d1b; }
@@ -681,5 +697,6 @@ h1, h2, .brand, .stat-value, .checkout-merchant strong {
   .x402-actions { align-items: stretch; flex-direction: column; }
   .x402-actions .button-primary { width: 100%; }
   .x402-price { align-self: flex-start; }
+  .x402-result-grid { grid-template-columns: 1fr; }
   .merchant-note { align-items: flex-start; }
 }

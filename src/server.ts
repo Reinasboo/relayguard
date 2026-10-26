@@ -24,6 +24,7 @@ import { AuthorizationService } from "./core/authorization.js";
 import { CheckoutService } from "./core/checkout.js";
 import { PostgresAuthorizationService, PostgresCheckoutService } from "./core/postgres.js";
 import type { AuthorizationStore, CheckoutStore } from "./core/stores.js";
+import { createMezoAgentIntegrationBrief } from "./x402/resource.js";
 import type { PaymentIntent, SpendingPolicy } from "./core/domain.js";
 import { MezoAdapter } from "./adapters/mezo.js";
 import type { PreparedPayment } from "./adapters/contract.js";
@@ -309,11 +310,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 503, { error: "The x402 MUSD endpoint is not enabled on this server." });
       return;
     }
-    response(res, 200, {
-      ok: true,
-      product: "RelayGuard",
-      message: "MUSD payment settled; this protected Mezo resource is unlocked."
-    });
+    response(res, 200, createMezoAgentIntegrationBrief({
+      endpoint: new URL("/api/paid-resource", requestOrigin(req)).toString(),
+      price: x402Price,
+      payTo: getAddress(x402PayTo)
+    }));
     return;
   }
 

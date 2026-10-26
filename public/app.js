@@ -63,6 +63,136 @@ function toast(message, kind = "info") {
   }, 4200);
 }
 
+function showX402Progress(message) {
+  const result = byId("x402-result");
+  const status = document.createElement("p");
+  status.className = "x402-result-progress";
+  status.textContent = message;
+  result.replaceChildren(status);
+  result.classList.remove("hidden");
+}
+
+function renderX402Result(body, settlement) {
+  if (typeof body !== "object" || body === null || !("resource" in body) || !("integration" in body)) {
+    throw new Error("The payment settled, but the protected resource returned an unexpected response.");
+  }
+  const resource = body.resource;
+  const integration = body.integration;
+  if (
+    typeof resource !== "object" || resource === null ||
+    typeof integration !== "object" || integration === null ||
+    typeof resource.title !== "string" || typeof resource.summary !== "string" ||
+    typeof integration.network !== "object" || integration.network === null ||
+    typeof integration.payment !== "object" || integration.payment === null ||
+    typeof integration.endpoint !== "object" || integration.endpoint === null ||
+    !Array.isArray(body.agentPlaybook) || !Array.isArray(body.verificationChecklist)
+  ) {
+    throw new Error("The payment settled, but the protected resource returned an incomplete integration brief.");
+  }
+
+  const result = byId("x402-result");
+  result.replaceChildren();
+  const header = document.createElement("div");
+  header.className = "x402-result-header";
+  const check = document.createElement("span");
+  check.className = "x402-result-check";
+  check.textContent = "✓";
+  const heading = document.createElement("div");
+  const statusLabel = document.createElement("span");
+  statusLabel.textContent = "PAYMENT SETTLED · RESOURCE UNLOCKED";
+  const title = document.createElement("h3");
+  title.textContent = resource.title;
+  heading.append(statusLabel, title);
+  header.append(check, heading);
+  result.append(header);
+
+  const summary = document.createElement("p");
+  summary.className = "x402-result-summary";
+  summary.textContent = resource.summary;
+  result.append(summary);
+
+  const network = integration.network;
+  const payment = integration.payment;
+  const asset = payment.asset;
+  if (
+    typeof network !== "object" || network === null ||
+    typeof payment !== "object" || payment === null ||
+    typeof asset !== "object" || asset === null ||
+    typeof integration.endpoint !== "object" || integration.endpoint === null
+  ) {
+    throw new Error("The payment settled, but the integration details are incomplete.");
+  }
+  const grid = document.createElement("div");
+  grid.className = "x402-result-grid";
+  for (const [label, value] of [
+    ["NETWORK", `${network.name} · ${network.caip2}`],
+    ["PAYMENT", `${payment.amount} ${asset.symbol} · ${payment.scheme}`],
+    ["MUSD TOKEN", asset.address],
+    ["TRANSFER", `${payment.transferMethod} · exact-amount approval`],
+    ["RECIPIENT", payment.recipient],
+    ["PROTECTED API", `${integration.endpoint.method} ${new URL(integration.endpoint.url).pathname}`]
+  ]) {
+    const item = document.createElement("div");
+    item.className = "x402-result-item";
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = String(value);
+    item.append(labelElement, valueElement);
+    grid.append(item);
+  }
+  result.append(grid);
+
+  const steps = document.createElement("ol");
+  steps.className = "x402-result-steps";
+  for (const entry of body.agentPlaybook) {
+    if (typeof entry !== "object" || entry === null || !("action" in entry) || typeof entry.action !== "string") continue;
+    const item = document.createElement("li");
+    item.textContent = entry.action;
+    steps.append(item);
+  }
+  const playbook = document.createElement("details");
+  const playbookSummary = document.createElement("summary");
+  playbookSummary.textContent = "Open the agent integration playbook";
+  playbook.append(playbookSummary, steps);
+  result.append(playbook);
+
+  const checklist = document.createElement("ul");
+  checklist.className = "x402-result-checklist";
+  for (const entry of body.verificationChecklist) {
+    if (typeof entry !== "string") continue;
+    const item = document.createElement("li");
+    item.textContent = entry;
+    checklist.append(item);
+  }
+  const checklistDetails = document.createElement("details");
+  const checklistSummary = document.createElement("summary");
+  checklistSummary.textContent = "Security checklist";
+  checklistDetails.append(checklistSummary, checklist);
+  result.append(checklistDetails);
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(settlement)) {
+    throw new Error("The resource was unlocked, but the facilitator returned an invalid settlement reference.");
+  }
+  const receipt = document.createElement("a");
+  receipt.className = "x402-result-receipt";
+  receipt.href = `https://explorer.test.mezo.org/tx/${settlement}`;
+  receipt.target = "_blank";
+  receipt.rel = "noreferrer noopener";
+  receipt.textContent = `View confirmed Mezo settlement · ${settlement.slice(0, 10)}…${settlement.slice(-8)} ↗`;
+  result.append(receipt);
+
+  const jsonDetails = document.createElement("details");
+  const jsonSummary = document.createElement("summary");
+  jsonSummary.textContent = "View raw JSON for agent clients";
+  const json = document.createElement("pre");
+  json.className = "x402-result-json";
+  json.textContent = JSON.stringify(body, null, 2);
+  jsonDetails.append(jsonSummary, json);
+  result.append(jsonDetails);
+  result.classList.remove("hidden");
+}
+
 async function api(path, options = {}) {
   const requestHeaders = () => ({
     ...(options.body ? { "content-type": "application/json" } : {}),
@@ -1010,13 +1140,9 @@ byId("pay-x402-resource").addEventListener("click", async (event) => {
   try {
     const { body, settlement } = await payForRelayguardResource(
       "/api/paid-resource",
-      (message) => {
-        byId("x402-result").textContent = message;
-        byId("x402-result").classList.remove("hidden");
-      }
+      showX402Progress
     );
-    byId("x402-result").textContent = `${JSON.stringify(body, null, 2)}\n\nMezo settlement: ${settlement}`;
-    byId("x402-result").classList.remove("hidden");
+    renderX402Result(body, settlement);
     toast("x402 payment settled; resource unlocked.", "success");
   } catch (error) {
     byId("x402-result").textContent = error.message;

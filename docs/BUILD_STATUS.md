@@ -9,14 +9,14 @@ RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Me
 ## Implemented
 
 - Deterministic integer-based spending policy, idempotency, approval challenges, constrained lifecycle transitions, and hash-linked audit events.
-- SQLite persistence for authorization, audit, and checkout invoice state; startup fails closed if audit-chain verification fails.
+- SQLite persistence for local authorization, audit, and checkout invoice state; startup fails closed if audit-chain verification fails. Vercel runtime implementations use Supabase Postgres, with atomic per-agent spend reservations and a serialized hash-chain head.
 - Versioned typed adapter contract and registry. Mezo supports native BTC and testnet MUSD; Solana x402, NEAR, and Lightning remain fail-closed adapter foundations.
 - Local Mezo Testnet console and API for wallet/network status, policy review, explicit operator execution, receipt verification, and audit evidence.
 - Merchant workspace, durable MUSD invoices, expiry and reservation controls, shareable checkout URLs, locally generated QR codes, and direct buyer-wallet signing.
 - Browser x402 EVM client and Express payment middleware for a `$0.001 MUSD` protected resource on Mezo Testnet. Mezo facilitator capability sync succeeds; unpaid HTTP requests return 402 with the expected canonical MUSD token, amount, recipient, and chain ID.
-- Supabase CLI 2.122.0 authenticated and linked to project `relayguard`; email Auth provider enabled, local callback URLs allowlisted, publishable key configured in ignored local app config. Merchant invoices are user-ID scoped in SQLite, and operator audit/payment endpoints require a verified Supabase bearer token.
+- Supabase CLI 2.122.0 authenticated and linked to project `relayguard`; both hosted migrations applied and verified. Email Auth provider enabled, local callback URLs allowlisted, publishable key configured in ignored local app config. Merchant invoices are user-ID scoped; operator audit/payment endpoints require a verified Supabase bearer token.
 - Separate merchant wallet generated and stored in ignored `.env.wallets.local`; buyer/operator wallet retained separately. No wallet key was committed or printed as output.
-- Supabase Postgres migration prepared with RLS and previewed successfully. Remote migration apply timed out; database password and a reachable database connection are still needed. Current persistence remains local SQLite.
+- Vercel function entry point and deployment config are built. All required production environment variable names are configured; live read-only Supabase Postgres readiness and audit-chain checks pass. No deployment has been published yet.
 - Invoice authorization binds the payer, merchant, exact MUSD amount, and policy record. Settlement requires a matching successful MUSD `Transfer` event and exact sender, recipient, and amount before the invoice becomes paid.
 - Checkout rejects insufficient MUSD before reserving an invoice. Wallet rejection can release an unsubmitted authorization; malformed transaction hashes are rejected before state transitions.
 - User-authorized minimum MUSD testnet borrow executed through official `BorrowerOperations`: 1,800 MUSD against 0.045 BTC collateral; receipt verified.
@@ -27,7 +27,7 @@ RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Me
 
 ## Current validation
 
-- `npm test`: 24 passing, 0 failing.
+- `npm test`: 26 passing, 0 failing; TypeScript build/typecheck and `vercel build --prod --yes` pass.
 - `node --check public/app.js`, TypeScript build, and production dependency audit (0 advisories) pass.
 - Refreshed app serves the authenticated merchant workspace and returns configured x402 resource settings.
 - x402 HTTP check returns 402 with `eip155:31611`, official MUSD contract, exact `0.001 MUSD`, and separate merchant recipient.
@@ -38,14 +38,13 @@ RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Me
 ## Not implemented / blockers
 
 - Mezo Testnet invoice and x402 payments are verified, but browser-wallet signing has not been manually tested. Testnet loan has an active trove; 0.045 BTC collateral remains locked under Mezo liquidation rules.
-- Supabase Auth is configured and the owner confirms login works. Database migration push timed out, so auth-protected data is still in local SQLite rather than Supabase Postgres.
-- Service binds to loopback. No public deployment, rate limiting, production key management, or production threat-model sign-off. Do not expose it publicly.
+- Supabase Auth is configured and the owner confirms login works. The Postgres runtime connects to the hosted database and verifies checkout schema access and the audit chain; local development remains on SQLite.
+- A Vercel project and GitHub auto-deploy connection are configured, and production variables are present. No public deployment has been published; rate limiting, production key management, and production threat-model sign-off remain open.
 - No public deployment URL or final hackathon submission verification is configured.
 - Solana x402, NEAR, and Lightning integrations remain unimplemented.
 
 ## Next steps
 
-1. Obtain the database password through Supabase project settings, store it locally in `.env.supabase.local`, and retry migration push.
-2. Manually verify connected browser-wallet signing for invoice checkout and x402 with the funded buyer.
-3. Move invoice, authorization, and audit persistence to hosted Postgres; apply and verify the Supabase migration.
-4. Configure a deployment target, HTTPS, production callback/origin settings, monitoring, rate limits, and safe signing operations before publishing a public URL.
+1. Publish the verified Vercel production build and smoke-test public and protected routes.
+2. Add the production Vercel origin to Supabase Auth redirect URLs and manually verify browser-wallet signing for invoice checkout and x402.
+3. Add rate limits and operational safeguards before treating the app as production-ready.

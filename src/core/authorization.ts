@@ -9,6 +9,7 @@ import type {
   SpendingPolicy
 } from "./domain.js";
 import { digest, evaluatePolicy, validatePolicy } from "./policy.js";
+import type { AuthorizationStore } from "./stores.js";
 
 const APPROVAL_TTL_MS = 10 * 60 * 1000;
 const TERMINAL_UNSPENT_STATES = ["denied", "failed", "cancelled", "expired"] as const;
@@ -122,7 +123,7 @@ function decodeAuditEvent(row: Record<string, unknown>): AuditEvent {
  * The default in-memory path exists for isolated tests and local examples.
  * This class does not provide authentication or tenant isolation.
  */
-export class AuthorizationService {
+export class AuthorizationService implements AuthorizationStore {
   private readonly database: DatabaseSync;
   private closed = false;
 
@@ -402,6 +403,10 @@ export class AuthorizationService {
       previousHash = event.hash;
     }
     return true;
+  }
+
+  ready(): Promise<void> {
+    return Promise.resolve();
   }
 
   close(): void {

@@ -4,10 +4,10 @@ RelayGuard is one Mezo MUSD payments product with two connected experiences: QR-
 
 ## Current status
 
-The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements. A public deployment is not configured yet. It includes:
+The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements, a Vercel serverless entry point, and Supabase Postgres persistence. Production configuration and the live database smoke test are verified; the public deployment and cross-device wallet flow remain pending. It includes:
 
 - Exact integer/base-unit policy checks for agent, network, asset, recipient, transaction cap, daily cap, and approval threshold.
-- A SQLite-backed authorization lifecycle with per-agent idempotency, atomic daily reservations, expiring approvals bound to the intent and policy version, and a hash-linked audit log.
+- A storage-backed authorization lifecycle with per-agent idempotency, atomic daily reservations, expiring approvals bound to the intent and policy version, and a hash-linked audit log. Local development uses SQLite; Vercel is configured to use the hosted Postgres implementation.
 - A versioned adapter interface and Mezo testnet integration for native BTC transfers and optional MUSD ERC-20 transfers.
 - A durable MUSD merchant invoice book with expiry, shareable checkout URL, generated QR code, direct buyer-wallet signing, authorization binding, and matching ERC-20 settlement verification.
 - An integrated x402 API paid in MUSD on Mezo Testnet, using the Mezo facilitator and a browser EIP-712 wallet flow. Unpaid requests return x402 payment requirements; the resource is unlocked only after facilitator settlement.
@@ -15,7 +15,7 @@ The repository contains a working Mezo Testnet product demo with verified invoic
 - A local-only browser console and HTTP API for intent review, policy decisions, human approval, explicit execution, settlement verification, and audit evidence.
 - Focused automated tests for policy limits, approval binding, idempotency, lifecycle transitions, and audit-chain integrity.
 
-The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). This is not a public deployment: SQLite stores authorization and invoice state, and cross-device browser-wallet signing still needs validation.
+The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). Both hosted migrations, Vercel production settings, and a read-only live Postgres readiness check are verified. The public deployment and production-origin wallet/auth flow still need verification.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ Open `http://127.0.0.1:4173`. `npm start` builds the TypeScript server and start
 
 Copy `.env.example` to `.env`, then set `MEZO_PRIVATE_KEY`, the matching `MEZO_SIGNER_ADDRESS`, `MEZO_MERCHANT_ADDRESS`, and a comma-separated `MEZO_ALLOWED_RECIPIENTS` allowlist containing the merchant. Leave the network set to `testnet`. The server checks that `MEZO_TOKEN_ADDRESS` has deployed code and reports the `MUSD` symbol. Keep `.env` private. Local ignored `.env.app.local` holds the Supabase publishable key and demo merchant address; `.env.wallets.local` holds the newly generated merchant wallet key. Never copy these files into a public deployment or expose wallet keys.
 
-Supabase CLI authentication and project linking are set up for project `relayguard`. The Auth email provider is enabled, and local redirect URLs point at port 4173. The merchant app uses Supabase Auth for sessions, but the SQL migration is **not yet applied**: the linked database connection timed out and needs the database password locally. Add `SUPABASE_DB_PASSWORD=...` to ignored `.env.supabase.local`, then run `.\scripts\supabase.ps1 db push --linked`. The deploy migration enables row-level security and private merchant invoice access. Until it is applied and the runtime repository is moved to hosted Postgres, application invoice/audit persistence remains SQLite.
+Supabase CLI authentication and project linking are set up for project `relayguard`. The Auth email provider is enabled, local redirect URLs point at port 4173, and both hosted database migrations have been applied. Local development still uses SQLite. The Vercel runtime selects hosted Postgres when `DATABASE_URL` is configured and fails closed if it is absent. The transaction-pooler connection uses encrypted TLS per Supabase's serverless guidance; use the Supabase database CA certificate to enable certificate verification where required. Never put credentials in source control or chat.
 
 The x402 resource is available at `/api/paid-resource`, priced at `$0.001` MUSD on `eip155:31611`, and pays to the generated merchant wallet. The integrated UI and `/api/config` expose only the publishable Supabase key; there is no service-role key in the browser or application configuration.
 
@@ -46,6 +46,6 @@ One shared authorization core will sit before protocol-specific adapters. An ada
 
 ## Security and limitations
 
-The `AuthorizationService` uses SQLite transactions (`BEGIN IMMEDIATE`) and a durable database file; separate SQLite connections serialize authorization decisions and daily reservations. Operator controls and merchant invoice listing/creation require a verified Supabase user token. Hash-linked audit events are not independently tamper-proof against an administrator able to rewrite the database. There is no production signing boundary, rate limiting, managed database persistence, or public deployment. Keep the server loopback-only until the remaining deployment checklist is complete.
+Local `AuthorizationService` uses SQLite transactions (`BEGIN IMMEDIATE`); the hosted implementation uses Postgres transactions, per-agent advisory locks for spending reservations, and a serialized audit-chain head. Operator controls and merchant invoice listing/creation require a verified Supabase user token. Hash-linked audit events are not independently tamper-proof against a database administrator. Rate limiting, dedicated production signing controls, and production deployment review remain outstanding.
 
 `.env.example` contains only placeholders and safe defaults. Do not expose the current service publicly or authorize real funds until hosted persistence, production signing controls, and a production deployment review are complete.

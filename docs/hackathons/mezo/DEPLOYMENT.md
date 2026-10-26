@@ -10,21 +10,23 @@
 6. Create a MUSD invoice to demonstrate the QR/human checkout path. Buyers connect their wallet and pay directly.
 7. Use the integrated x402 panel or `GET /api/paid-resource` to demonstrate the agent path. An unpaid request should return HTTP 402 with Mezo Testnet MUSD payment requirements; the browser client checks and, if required, requests the exact Permit2 allowance before the buyer signs authorization. The approval transaction uses BTC for gas; the facilitator settles the MUSD payment.
 
-The app currently binds to loopback and stores invoice/authorization/audit data in SQLite. It is a testnet demo, not a public production service. A checkout QR is only reachable from this machine.
+Local development binds to loopback and stores invoice/authorization/audit data in SQLite. The Vercel function runtime selects Supabase Postgres when `DATABASE_URL` is configured. No public deployment is active yet.
 
 ## Vercel deployment assessment
 
-Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project is created, linked, and connected to the GitHub repository. A static-only deployment of `public/` is not a working RelayGuard deployment: the browser app requires same-origin `/api/config`, `/api/health`, invoice, authorization, and x402 routes, while checkout links must resolve to server-side invoice state. Those routes currently run in the local Express server and use SQLite; no public API origin or deployment is configured.
+Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project is created, linked, and connected to the GitHub repository. `api/[...path].js` adapts the Express app to Vercel Functions; `vercel.json` routes shareable `/pay/` checkout links through the same API and serves the frontend from `public/`. Runtime persistence uses Supabase Postgres when `DATABASE_URL` is configured; otherwise Vercel startup fails closed. All 23 required production variable names are configured as hidden Vercel secrets.
 
-Vercel can host the frontend once a reachable API and durable database are available. Do not deploy the current UI as if checkout were live, or expose the local SQLite server as a public API. First choose and configure a production API/persistence architecture, then connect the Vercel frontend to that API and test invoice creation, buyer checkout, and x402 settlement on the deployed origins.
+Both Supabase migrations are applied: merchant-authenticated invoice schema and runtime authorization/audit tables. The read-only live database smoke test passed for connectivity, invoice schema access, and the audit chain. `npm test` (26/26), `npm run typecheck`, and `vercel build --prod --yes` pass. The production deployment and its public API smoke tests are still pending.
 
 ## Supabase CLI, Auth, and database
 
 - Supabase CLI `2.122.0` runs through `npx supabase`; authentication is active and the linked `relayguard` project is healthy.
 - The Supabase email provider is enabled and local callback URLs (`127.0.0.1:4173` and `localhost:4173`) are allowlisted.
 - The publishable client key is local-only in `.env.app.local`. No service-role key is installed or used by browser code.
-- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices. The migration was successfully applied to the linked remote project and its migration history was verified.
-- Even after migration, the server still needs a Supabase/Postgres repository before it can claim hosted persistence. Current invoice, authorization, and audit records remain in SQLite; the applied tables are not yet wired into the API.
+- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices; `20261026010000_relayguard_runtime_storage.sql` adds durable authorization and audit data plus the Postgres invoice representation. Both migrations were successfully applied and verified.
+- Vercel's server runtime requires `DATABASE_URL` for the Supabase transaction pooler. Use the `postgres.<project-ref>` pooler user on port `6543`, the `relayguard` project database password, and encrypted TLS. The Node Postgres client follows Supabase's documented serverless SSL `require` behavior; use the Supabase database CA certificate to validate the server certificate when available. Keep the connection string only in Vercel's encrypted environment configuration or an ignored local file.
+- Runtime configuration must also include the Mezo testnet signer, official MUSD token, merchant address/allowlist, x402 facilitator and price, Supabase Auth URL and publishable key. `MEZO_PRIVATE_KEY` and `DATABASE_URL` are server-only secrets; never expose them in frontend variables.
+- The Node Postgres driver has passed a read-only live check against the remote database. No test records were created.
 
 ## Wallet state and payment evidence
 

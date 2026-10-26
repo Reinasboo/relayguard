@@ -22,6 +22,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mezoTestnet } from "viem/chains";
 import { AuthorizationService } from "./core/authorization.js";
 import { CheckoutService } from "./core/checkout.js";
+import { PostgresAuthorizationService, PostgresCheckoutService } from "./core/postgres.js";
+import type { AuthorizationStore, CheckoutStore } from "./core/stores.js";
 import type { PaymentIntent, SpendingPolicy } from "./core/domain.js";
 import { MezoAdapter } from "./adapters/mezo.js";
 import type { PreparedPayment } from "./adapters/contract.js";
@@ -43,6 +45,7 @@ const approverId = process.env.MEZO_APPROVER_ID ?? "local-operator";
 const merchantName = process.env.MEZO_MERCHANT_NAME ?? "RelayGuard Test Merchant";
 const merchantAddressConfig = process.env.MEZO_MERCHANT_ADDRESS ?? "";
 const databasePath = process.env.RELAYGUARD_DATABASE_PATH ?? "./data/relayguard.sqlite";
+const databaseUrl = process.env.DATABASE_URL;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 const supabase =
@@ -56,8 +59,16 @@ const x402PayTo = process.env.X402_PAY_TO ?? "";
 const x402Price = process.env.X402_PRICE ?? "$0.001";
 const x402FacilitatorUrl = process.env.X402_FACILITATOR_URL ?? "https://facilitator.vativ.io";
 const adapter = new MezoAdapter();
-const authorization = new AuthorizationService(databasePath);
-const checkout = new CheckoutService(databasePath);
+if (process.env.VERCEL && !databaseUrl) {
+  throw new Error("DATABASE_URL must be configured for the Vercel runtime.");
+}
+const authorization: AuthorizationStore = databaseUrl
+  ? new PostgresAuthorizationService(databaseUrl)
+  : new AuthorizationService(databasePath);
+const checkout: CheckoutStore = databaseUrl
+  ? new PostgresCheckoutService(databaseUrl)
+  : new CheckoutService(databasePath);
+const storageReady = Promise.all([authorization.ready(), checkout.ready()]).then(() => undefined);
 const pendingPayments = new Map<string, PreparedPayment>();
 const publicClient = createPublicClient({
   chain: mezoTestnet,
@@ -219,7 +230,14 @@ function localOriginAllowed(req: IncomingMessage): boolean {
   }
   try {
     const url = new URL(origin);
-    if (process.env.PUBLIC_ORIGIN && url.origin === process.env.PUBLIC_ORIGIN) {
+    const publicOrigins = [
+      process.env.PUBLIC_ORIGIN,
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : undefined
+    ].filter((value): value is string => Boolean(value));
+    if (publicOrigins.includes(url.origin)) {
       return true;
     }
     return (
@@ -229,6 +247,22 @@ function localOriginAllowed(req: IncomingMessage): boolean {
   } catch {
     return false;
   }
+}
+
+function requestOrigin(req: IncomingMessage): string {
+  const forwardedProtocol = req.headers["x-forwarded-proto"];
+  const protocol =
+    typeof forwardedProtocol === "string" && /^https?$/.test(forwardedProtocol)
+      ? forwardedProtocol
+      : process.env.VERCEL
+        ? "https"
+        : "http";
+  const hostHeader = req.headers.host;
+  const host = typeof hostHeader === "string" ? hostHeader.trim() : undefined;
+  if (!host) {
+    throw new Error("Request host is unavailable.");
+  }
+  return new URL(`${protocol}://${host}`).origin;
 }
 
 async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -243,7 +277,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         ? {
             url: supabaseUrl,
             publishableKey: supabasePublishableKey,
-            redirectUrl: process.env.SUPABASE_REDIRECT_URL ?? `http://127.0.0.1:${port}/`
+            redirectUrl:
+              process.env.SUPABASE_REDIRECT_URL ??
+              (process.env.VERCEL_PROJECT_PRODUCTION_URL
+                ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/`
+                : `${requestOrigin(req)}/`)
           }
         : null,
       x402: {
@@ -336,9 +374,13 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   }
 
   if (req.method === "GET" && url.pathname === "/api/audit") {
+    const [verified, events] = await Promise.all([
+      authorization.verifyAuditChain(),
+      authorization.auditEvents()
+    ]);
     response(res, 200, {
-      verified: authorization.verifyAuditChain(),
-      events: authorization.auditEvents().slice(-50).reverse()
+      verified,
+      events: events.slice(-50).reverse()
     });
     return;
   }
@@ -359,7 +401,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 401, { error: "Sign in to manage merchant invoices." });
       return;
     }
-    response(res, 200, { invoices: checkout.list(userId) });
+    response(res, 200, { invoices: await checkout.list(userId) });
     return;
   }
 
@@ -394,7 +436,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 400, { error: "Invoice expiry must be between 0.25 and 168 hours." });
       return;
     }
-    const invoice = checkout.create({
+    const invoice = await checkout.create({
       merchantUserId: userId,
       merchantName,
       merchantAddress,
@@ -402,7 +444,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       description,
       expiresAt: Date.now() + expiresInHours * 60 * 60 * 1000
     });
-    const baseUrl = `http://${host}:${port}`;
+    const baseUrl = requestOrigin(req);
     response(res, 201, {
       invoice,
       checkoutUrl: `${baseUrl}/pay/${invoice.id}`,
@@ -413,8 +455,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
 
   const invoiceQrMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/qr$/);
   if (req.method === "GET" && invoiceQrMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceQrMatch[1] ?? ""));
-    const image = await QRCode.toBuffer(`http://${host}:${port}/pay/${invoice.id}`, {
+    const invoice = await checkout.get(decodeURIComponent(invoiceQrMatch[1] ?? ""));
+    const image = await QRCode.toBuffer(`${requestOrigin(req)}/pay/${invoice.id}`, {
       type: "png",
       errorCorrectionLevel: "M",
       margin: 1,
@@ -432,14 +474,14 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
 
   const invoiceMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)$/);
   if (req.method === "GET" && invoiceMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceMatch[1] ?? ""));
+    const invoice = await checkout.get(decodeURIComponent(invoiceMatch[1] ?? ""));
     response(res, 200, { invoice });
     return;
   }
 
   const invoiceAuthorizeMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/authorize$/);
   if (req.method === "POST" && invoiceAuthorizeMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceAuthorizeMatch[1] ?? ""));
+    const invoice = await checkout.get(decodeURIComponent(invoiceAuthorizeMatch[1] ?? ""));
     const body = await readJson(req);
     if (typeof body.payerAddress !== "string" || !isAddress(body.payerAddress)) {
       response(res, 400, { error: "A valid Mezo testnet payer address is required." });
@@ -452,7 +494,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     const payerAddress = getAddress(body.payerAddress);
     const payerId = `checkout:${payerAddress.toLowerCase()}`;
     if (invoice.status === "authorized" && invoice.authorizationId) {
-      const existing = authorization.get(invoice.authorizationId);
+      const existing = await authorization.get(invoice.authorizationId);
       if (existing.intent.agentId !== payerId) {
         response(res, 409, { error: "This invoice is already reserved by another payer." });
         return;
@@ -496,7 +538,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       agentId: payerId,
       allowedRecipients: [invoice.merchantAddress]
     };
-    const result = authorization.request(intent, policy);
+    const result = await authorization.request(intent, policy);
     if (result.record.status !== "authorized") {
       response(res, 403, {
         error: result.record.reason ?? "Merchant checkout policy did not authorize this payment.",
@@ -504,14 +546,14 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       });
       return;
     }
-    const updatedInvoice = checkout.authorize(invoice.id, result.record.id);
+    const updatedInvoice = await checkout.authorize(invoice.id, result.record.id);
     response(res, 200, { invoice: updatedInvoice, authorization: result.record, replayed: result.replayed });
     return;
   }
 
   const invoiceSubmitMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/submit$/);
   if (req.method === "POST" && invoiceSubmitMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceSubmitMatch[1] ?? ""));
+    const invoice = await checkout.get(decodeURIComponent(invoiceSubmitMatch[1] ?? ""));
     const body = await readJson(req);
     if (
       typeof body.authorizationId !== "string" ||
@@ -521,7 +563,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 400, { error: "Authorization ID and a 32-byte transaction hash are required." });
       return;
     }
-    const record = authorization.get(body.authorizationId);
+    const record = await authorization.get(body.authorizationId);
     if (
       invoice.status !== "authorized" ||
       invoice.authorizationId !== record.id ||
@@ -533,22 +575,22 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: "Invoice and policy authorization do not match." });
       return;
     }
-    authorization.markExecuting(record.id);
-    const submitted = authorization.markSubmitted(record.id, Date.now(), body.transactionHash);
-    const updatedInvoice = checkout.submit(invoice.id, record.id, body.transactionHash);
+    await authorization.markExecuting(record.id);
+    const submitted = await authorization.markSubmitted(record.id, Date.now(), body.transactionHash);
+    const updatedInvoice = await checkout.submit(invoice.id, record.id, body.transactionHash);
     response(res, 200, { invoice: updatedInvoice, authorization: submitted });
     return;
   }
 
   const invoiceReleaseMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/release$/);
   if (req.method === "POST" && invoiceReleaseMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceReleaseMatch[1] ?? ""));
+    const invoice = await checkout.get(decodeURIComponent(invoiceReleaseMatch[1] ?? ""));
     const body = await readJson(req);
     if (typeof body.authorizationId !== "string" || typeof body.payerAddress !== "string" || !isAddress(body.payerAddress)) {
       response(res, 400, { error: "Authorization ID and valid payer address are required." });
       return;
     }
-    const record = authorization.get(body.authorizationId);
+    const record = await authorization.get(body.authorizationId);
     if (
       invoice.status !== "authorized" ||
       invoice.authorizationId !== record.id ||
@@ -558,20 +600,20 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: "Only the same payer can release an unsubmitted invoice authorization." });
       return;
     }
-    authorization.cancel(record.id);
-    const released = checkout.release(invoice.id, record.id);
+    await authorization.cancel(record.id);
+    const released = await checkout.release(invoice.id, record.id);
     response(res, 200, { invoice: released });
     return;
   }
 
   const invoiceVerifyMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/verify$/);
   if (req.method === "POST" && invoiceVerifyMatch) {
-    const invoice = checkout.get(decodeURIComponent(invoiceVerifyMatch[1] ?? ""));
+    const invoice = await checkout.get(decodeURIComponent(invoiceVerifyMatch[1] ?? ""));
     if (invoice.status !== "submitted" || !invoice.authorizationId || !invoice.transactionReference) {
       response(res, 409, { error: `Invoice cannot be verified from state '${invoice.status}'.` });
       return;
     }
-    const record = authorization.get(invoice.authorizationId);
+    const record = await authorization.get(invoice.authorizationId);
     const details = await assetDetails("MUSD");
     const evidence = await adapter.verifySettlement(invoice.transactionReference, undefined, {
       rpcUrl,
@@ -593,14 +635,14 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       evidence.value.recipient?.toLowerCase() === record.intent.recipient.toLowerCase() &&
       evidence.value.amountAtomic === record.intent.amountAtomic
     ) {
-      const confirmed = authorization.markConfirmed(record.id);
-      const paid = checkout.settle(invoice.id, "paid");
+      const confirmed = await authorization.markConfirmed(record.id);
+      const paid = await checkout.settle(invoice.id, "paid");
       response(res, 200, { invoice: paid, authorization: confirmed, evidence: evidence.value });
       return;
     }
     const reason = "Mezo receipt did not evidence the exact authorized MUSD payment.";
-    const failed = authorization.markFailed(record.id, reason);
-    const failedInvoice = checkout.settle(invoice.id, "failed");
+    const failed = await authorization.markFailed(record.id, reason);
+    const failedInvoice = await checkout.settle(invoice.id, "failed");
     response(res, 200, { invoice: failedInvoice, authorization: failed, evidence: evidence.value });
     return;
   }
@@ -608,7 +650,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const getPaymentMatch = url.pathname.match(/^\/api\/payments\/([^/]+)$/);
   if (req.method === "GET" && getPaymentMatch) {
     const recordId = decodeURIComponent(getPaymentMatch[1] ?? "");
-    const record = authorization.get(recordId);
+    const record = await authorization.get(recordId);
     response(res, 200, { record });
     return;
   }
@@ -666,7 +708,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
           : crypto.randomUUID()
     };
     const policy = policyFor(asset as "BTC" | "MUSD", details.decimals);
-    const result = authorization.request(intent, policy);
+    const result = await authorization.request(intent, policy);
     if (result.record.status === "denied") {
       response(res, 403, { record: result.record, error: result.record.reason ?? "Policy denied this payment." });
       return;
@@ -688,8 +730,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       ...(details.tokenAddress ? { tokenAddress: details.tokenAddress } : {})
     });
     if (!prepared.supported) {
-      authorization.markFailed(result.record.id, prepared.message);
-      response(res, 503, { error: prepared.message, record: authorization.get(result.record.id) });
+      await authorization.markFailed(result.record.id, prepared.message);
+      response(res, 503, { error: prepared.message, record: await authorization.get(result.record.id) });
       return;
     }
     pendingPayments.set(result.record.id, prepared.value);
@@ -709,10 +751,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 400, { error: "Approval challenge is required." });
       return;
     }
-    const record = authorization.get(recordId);
+    const record = await authorization.get(recordId);
     const details = await assetDetails(record.intent.asset);
     const policy = policyFor(record.intent.asset as "BTC" | "MUSD", details.decimals);
-    const approved = authorization.approve(recordId, approverId, body.challenge, policy);
+    const approved = await authorization.approve(recordId, approverId, body.challenge, policy);
     const prepared = await adapter.prepare(approved.intent, undefined, {
       rpcUrl,
       network: "testnet",
@@ -721,8 +763,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       ...(details.tokenAddress ? { tokenAddress: details.tokenAddress } : {})
     });
     if (!prepared.supported) {
-      authorization.markFailed(recordId, prepared.message);
-      response(res, 503, { error: prepared.message, record: authorization.get(recordId) });
+      await authorization.markFailed(recordId, prepared.message);
+      response(res, 503, { error: prepared.message, record: await authorization.get(recordId) });
       return;
     }
     pendingPayments.set(recordId, prepared.value);
@@ -733,10 +775,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const rejectMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/reject$/);
   if (req.method === "POST" && rejectMatch) {
     const recordId = decodeURIComponent(rejectMatch[1] ?? "");
-    const record = authorization.get(recordId);
+    const record = await authorization.get(recordId);
     const details = await assetDetails(record.intent.asset);
     const policy = policyFor(record.intent.asset as "BTC" | "MUSD", details.decimals);
-    const rejected = authorization.reject(recordId, approverId, policy);
+    const rejected = await authorization.reject(recordId, approverId, policy);
     pendingPayments.delete(recordId);
     response(res, 200, { record: rejected, message: "Human rejected the exact payment intent." });
     return;
@@ -745,7 +787,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const executeMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/execute$/);
   if (req.method === "POST" && executeMatch) {
     const recordId = decodeURIComponent(executeMatch[1] ?? "");
-    const record = authorization.get(recordId);
+    const record = await authorization.get(recordId);
     if (record.status !== "authorized") {
       response(res, 409, { error: `Payment cannot execute from state '${record.status}'.`, record });
       return;
@@ -761,8 +803,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         ...(details.tokenAddress ? { tokenAddress: details.tokenAddress } : {})
       });
       if (!result.supported) {
-        authorization.markFailed(recordId, result.message);
-        response(res, 503, { error: result.message, record: authorization.get(recordId) });
+        await authorization.markFailed(recordId, result.message);
+        response(res, 503, { error: result.message, record: await authorization.get(recordId) });
         return;
       }
       prepared = result.value;
@@ -785,7 +827,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: `Insufficient ${record.intent.asset} balance; transaction not submitted.`, record });
       return;
     }
-    authorization.markExecuting(recordId);
+    await authorization.markExecuting(recordId);
     const result = await adapter.execute(prepared, undefined, {
       rpcUrl,
       network: "testnet",
@@ -794,11 +836,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       ...(process.env.MEZO_TOKEN_ADDRESS ? { tokenAddress: getAddress(process.env.MEZO_TOKEN_ADDRESS) } : {})
     });
     if (!result.supported) {
-      const failed = authorization.markFailed(recordId, result.message);
+      const failed = await authorization.markFailed(recordId, result.message);
       response(res, 502, { error: result.message, record: failed });
       return;
     }
-    const submitted = authorization.markSubmitted(recordId, Date.now(), result.value.reference);
+    const submitted = await authorization.markSubmitted(recordId, Date.now(), result.value.reference);
     pendingPayments.delete(recordId);
     response(res, 200, {
       record: submitted,
@@ -812,7 +854,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const verifyMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/verify$/);
   if (req.method === "POST" && verifyMatch) {
     const recordId = decodeURIComponent(verifyMatch[1] ?? "");
-    const record = authorization.get(recordId);
+    const record = await authorization.get(recordId);
     if (record.status !== "submitted") {
       response(res, 409, { error: `Payment cannot be verified from state '${record.status}'.`, record });
       return;
@@ -839,7 +881,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       getAddress(evidence.value.recipient) === getAddress(record.intent.recipient) &&
       evidence.value.amountAtomic === record.intent.amountAtomic
     ) {
-      const confirmed = authorization.markConfirmed(recordId);
+      const confirmed = await authorization.markConfirmed(recordId);
       response(res, 200, { record: confirmed, evidence: evidence.value });
       return;
     }
@@ -848,7 +890,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         evidence.value.state === "failed"
           ? "Mezo receipt did not evidence a successful transfer."
           : "Mezo transaction receipt does not match the authorized payment intent.";
-      const failed = authorization.markFailed(recordId, failureReason);
+      const failed = await authorization.markFailed(recordId, failureReason);
       response(res, 200, { record: failed, evidence: evidence.value });
       return;
     }
@@ -893,22 +935,34 @@ if (x402Enabled) {
 
 app.use(async (req: Request, res: Response) => {
   try {
+    await storageReady;
     const hostHeader = req.headers.host ?? "";
     const hostName = hostHeader.replace(/:\d+$/, "").toLowerCase();
-    const allowedPublicHost = (process.env.PUBLIC_HOSTNAME ?? "").toLowerCase();
+    const allowedPublicHosts = [
+      process.env.PUBLIC_HOSTNAME,
+      process.env.VERCEL_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => value.toLowerCase());
     if (
       !["localhost", "127.0.0.1", "::1"].includes(hostName) &&
-      (!allowedPublicHost || hostName !== allowedPublicHost)
+      !allowedPublicHosts.includes(hostName) &&
+      !(process.env.VERCEL && hostName.endsWith(".vercel.app"))
     ) {
       response(res, 403, { error: "This host is not configured for RelayGuard." });
       return;
     }
     const url = new URL(req.url ?? "/", `http://${hostHeader || `${host}:${port}`}`);
-    if (url.pathname.startsWith("/api/")) {
+    const paymentPath =
+      process.env.VERCEL && url.pathname.startsWith("/api/pay/")
+        ? url.pathname.slice("/api".length)
+        : url.pathname;
+    if (url.pathname.startsWith("/api/") && paymentPath === url.pathname) {
       await handleApi(req, res, url);
       return;
     }
-    if (url.pathname.startsWith("/pay/") && req.method === "GET") {
+    if (paymentPath.startsWith("/pay/") && req.method === "GET") {
       const content = await readFile(resolve(publicDirectory, "index.html"));
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
@@ -953,23 +1007,23 @@ app.use(async (req: Request, res: Response) => {
   }
 });
 
-const server = app.listen(port, host, () => {
-  console.log(`RelayGuard Mezo demo listening at http://${host}:${port}`);
-  console.log(`Network: ${mezoTestnet.name} (${mezoTestnet.id}); wallet: ${signerAddress}`);
-  console.log(`Supabase auth: ${supabase ? "configured" : "not configured"}`);
-  console.log(`x402 MUSD resource: ${x402Enabled ? "enabled" : "disabled"}`);
-  if (!allowedRecipients.length) {
-    console.warn("No recipients are policy-approved. Set MEZO_ALLOWED_RECIPIENTS before submitting a payment.");
-  }
-});
-
-function shutdown(): void {
-  server.close(() => {
-    authorization.close();
-    checkout.close();
-    process.exit(0);
+if (!process.env.VERCEL) {
+  const server = app.listen(port, host, () => {
+    console.log(`RelayGuard Mezo demo listening at http://${host}:${port}`);
+    console.log(`Network: ${mezoTestnet.name} (${mezoTestnet.id}); wallet: ${signerAddress}`);
+    console.log(`Supabase auth: ${supabase ? "configured" : "not configured"}`);
+    console.log(`x402 MUSD resource: ${x402Enabled ? "enabled" : "disabled"}`);
+    if (!allowedRecipients.length) {
+      console.warn("No recipients are policy-approved. Set MEZO_ALLOWED_RECIPIENTS before submitting a payment.");
+    }
   });
+  const shutdown = (): void => {
+    server.close(() => {
+      void Promise.all([authorization.close(), checkout.close()]).finally(() => process.exit(0));
+    });
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+export default app;

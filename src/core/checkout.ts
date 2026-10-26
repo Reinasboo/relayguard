@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
+import type { CheckoutStore } from "./stores.js";
 
 export type CheckoutStatus = "open" | "authorized" | "submitted" | "paid" | "expired" | "failed";
 
@@ -45,7 +46,7 @@ function decodeInvoice(row: Record<string, unknown>): CheckoutInvoice {
   });
 }
 
-export class CheckoutService {
+export class CheckoutService implements CheckoutStore {
   private readonly database: DatabaseSync;
   private closed = false;
 
@@ -233,6 +234,10 @@ export class CheckoutService {
       .prepare("UPDATE checkout_invoices SET status = ? WHERE id = ? AND status = 'submitted'")
       .run(status, id);
     return this.get(id);
+  }
+
+  ready(): Promise<void> {
+    return Promise.resolve();
   }
 
   close(): void {

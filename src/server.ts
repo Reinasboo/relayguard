@@ -333,6 +333,39 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   }
 
   if (req.method === "GET" && url.pathname === "/api/health") {
+    const [chainId, blockNumber] = await Promise.all([
+      publicClient.getChainId(),
+      publicClient.getBlockNumber()
+    ]);
+    if (chainId !== mezoTestnet.id) {
+      response(res, 503, { error: `RPC chain ID mismatch: expected ${mezoTestnet.id}, received ${chainId}.` });
+      return;
+    }
+    response(res, 200, {
+      status: "ready",
+      network: mezoTestnet.name,
+      chainId,
+      blockNumber: blockNumber.toString()
+    });
+    return;
+  }
+
+  const operatorApi =
+    url.pathname === "/api/health/details" ||
+    url.pathname === "/api/audit" ||
+    url.pathname === "/api/payments" ||
+    url.pathname === "/api/merchant/profile" ||
+    url.pathname.startsWith("/api/merchant/wallet/") ||
+    url.pathname === "/api/merchant/x402/resources" ||
+    /^\/api\/merchant\/x402\/resources\/[^/]+$/.test(url.pathname) ||
+    /^\/api\/merchant\/x402\/resources\/[^/]+\/key$/.test(url.pathname) ||
+    /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|cancel|execute|verify))?$/.test(url.pathname);
+  if (operatorApi && !(await authenticatedUserId(req))) {
+    response(res, 401, { error: "Sign in with your RelayGuard merchant account to access payment controls." });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/health/details") {
     const [chainId, blockNumber, balance] = await Promise.all([
       publicClient.getChainId(),
       publicClient.getBlockNumber(),
@@ -399,20 +432,6 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         approvalThreshold: process.env.MEZO_APPROVAL_THRESHOLD ?? "asset default"
       }
     });
-    return;
-  }
-
-  const operatorApi =
-    url.pathname === "/api/audit" ||
-    url.pathname === "/api/payments" ||
-    url.pathname === "/api/merchant/profile" ||
-    url.pathname.startsWith("/api/merchant/wallet/") ||
-    url.pathname === "/api/merchant/x402/resources" ||
-    /^\/api\/merchant\/x402\/resources\/[^/]+$/.test(url.pathname) ||
-    /^\/api\/merchant\/x402\/resources\/[^/]+\/key$/.test(url.pathname) ||
-    /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|cancel|execute|verify))?$/.test(url.pathname);
-  if (operatorApi && !(await authenticatedUserId(req))) {
-    response(res, 401, { error: "Sign in with your RelayGuard merchant account to access payment controls." });
     return;
   }
 

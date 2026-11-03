@@ -466,111 +466,25 @@ async function loadHealth() {
     byId("network-label").textContent = body.network;
     byId("network-status").textContent = "CONNECTED";
     byId("network-status").className = "status-pill success";
-    byId("native-balance").innerHTML = "";
-    byId("native-balance").append(document.createTextNode(Number(body.nativeBalance).toFixed(6)));
-    const unit = document.createElement("small");
-    unit.textContent = ` ${body.nativeAsset}`;
-    byId("native-balance").append(unit);
-    byId("wallet-address").textContent = `${shortAddress(body.wallet)} · signer ready`;
-    byId("wallet-address").title = body.wallet;
     byId("chain-name").textContent = body.network;
     byId("chain-id").textContent = String(body.chainId);
     byId("block-number").textContent = body.blockNumber;
-    if (body.musd) {
-      const amount = BigInt(body.musd.balanceAtomic);
-      const decimals = BigInt(body.musd.decimals);
-      const divisor = 10n ** decimals;
-      const whole = amount / divisor;
-      const fraction = (amount % divisor).toString().padStart(Number(decimals), "0").slice(0, 6);
-      byId("musd-balance").textContent = `${whole}.${fraction}`;
-      const unit = document.createElement("small");
-      unit.textContent = " MUSD";
-      byId("musd-balance").append(unit);
-      byId("musd-contract").textContent = shortAddress(body.musd.address);
-      byId("musd-contract").title = body.musd.address;
-      byId("musd-card").classList.remove("hidden");
-    }
-    renderTroveHealth(body.trove);
 
-    const recipientSelect = byId("recipient");
-    recipientSelect.innerHTML = "";
-    if (body.policy.configuredRecipients.length) {
-      for (const recipient of body.policy.configuredRecipients) {
-        const option = document.createElement("option");
-        option.value = recipient;
-        option.textContent = `${shortAddress(recipient)}${recipient.toLowerCase() === body.wallet.toLowerCase() ? " · own wallet" : ""}`;
-        option.title = recipient;
-        recipientSelect.append(option);
-      }
-      byId("setup-notice").classList.add("hidden");
-    } else {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No destinations configured";
-      recipientSelect.append(option);
-      byId("request-button").disabled = true;
-      const notice = byId("setup-notice");
-      notice.classList.remove("hidden");
-      notice.textContent = "Payments are paused until an approved recipient is configured.";
+    const accessToken = authSession?.access_token;
+    if (!accessToken) {
+      clearHealthDetails("Sign in to view protected wallet and policy details.");
+      return;
     }
 
-    function renderTroveHealth(trove) {
-      const status = byId("trove-status");
-      const ratio = byId("trove-icr");
-      const collateral = byId("trove-collateral");
-      const debt = byId("trove-debt");
-      const policy = byId("trove-policy");
-      if (!trove || trove.status === "unavailable") {
-        status.textContent = "Trove state unavailable";
-        status.className = "status-pill danger";
-        ratio.textContent = "—";
-        collateral.textContent = "—";
-        debt.textContent = "—";
-        policy.textContent = "MUSD authorization is paused until protocol state can be verified.";
-        return;
-      }
-      if (trove.status === "inactive") {
-        status.textContent = "No active trove";
-        status.className = "status-pill muted";
-        ratio.textContent = "—";
-        collateral.textContent = "—";
-        debt.textContent = "—";
-        policy.textContent = "Standard MUSD spending limits apply; no active trove was found for this signer.";
-        return;
-      }
-      const icr = Number(formatAtomic(trove.icrAtomic));
-      ratio.textContent = `${(icr * 100).toFixed(1)}%`;
-      collateral.textContent = `${formatDisplayAtomic(trove.collateralAtomic, 4)} BTC`;
-      debt.textContent = `${formatDisplayAtomic(trove.debtAtomic, 2)} MUSD`;
-      collateral.title = `${formatAtomic(trove.collateralAtomic)} BTC`;
-      debt.title = `${formatAtomic(trove.debtAtomic)} MUSD`;
-      if (trove.risk === "healthy") {
-        status.textContent = "Healthy";
-        status.className = "status-pill success";
-        policy.textContent = "Standard MUSD spending limits apply while the trove remains above the 150% review buffer.";
-      } else if (trove.risk === "review_required") {
-        status.textContent = "Human review required";
-        status.className = "status-pill pending";
-        policy.textContent = "Every MUSD payment requires explicit human approval while the trove is between 110% and 150% ICR.";
-      } else {
-        status.textContent = "MUSD spending paused";
-        status.className = "status-pill danger";
-        policy.textContent = "New MUSD authorizations, approvals, and executions are blocked below the 110% minimum collateral ratio.";
-      }
-    }
-
-    if (body.musd) {
-      const option = document.createElement("option");
-      option.value = "MUSD";
-      option.textContent = "MUSD · Mezo Testnet";
-      byId("asset").append(option);
-      byId("amount-unit").textContent = "BTC";
-      byId("asset").addEventListener("change", updateUnit);
-    } else {
-      const notice = byId("setup-notice");
-      if (!notice.classList.contains("hidden")) {
-        notice.textContent += " MUSD payments are temporarily unavailable.";
-      }
+    try {
+      const { body: details } = await api("/api/health/details");
+      if (authSession?.access_token !== accessToken) return;
+      walletState = { ...body, ...details };
+      renderHealthDetails(details);
+    } catch (error) {
+      if (authSession?.access_token !== accessToken) return;
+      clearHealthDetails("Protected wallet and policy details are unavailable.");
+      console.error("Protected Mezo health details could not be loaded:", error);
     }
   } catch (error) {
     byId("network-status").textContent = "OFFLINE";
@@ -580,6 +494,137 @@ async function loadHealth() {
     console.error("Mezo network status could not be loaded:", error);
     byId("setup-notice").textContent = "Mezo network status is temporarily unavailable. Please try again.";
     toast("Mezo network status is temporarily unavailable.", "error");
+  }
+}
+
+function clearHealthDetails(message) {
+  walletState = undefined;
+  byId("native-balance").textContent = "Sign-in required";
+  byId("wallet-address").textContent = "Protected operator details";
+  byId("wallet-address").removeAttribute("title");
+  byId("musd-card").classList.add("hidden");
+  byId("musd-balance").textContent = "— MUSD";
+  byId("musd-contract").textContent = "Verified testnet token contract";
+  byId("asset").querySelector('option[value="MUSD"]')?.remove();
+  byId("asset").value = "BTC";
+  updateUnit();
+  byId("trove-status").textContent = "Protected details";
+  byId("trove-status").className = "status-pill muted";
+  byId("trove-icr").textContent = "—";
+  byId("trove-collateral").textContent = "—";
+  byId("trove-debt").textContent = "—";
+  byId("trove-policy").textContent = message;
+
+  const recipientSelect = byId("recipient");
+  recipientSelect.replaceChildren(new Option("Sign in to load approved destinations", ""));
+  byId("request-button").disabled = true;
+  const notice = byId("setup-notice");
+  notice.classList.remove("hidden");
+  notice.textContent = message;
+}
+
+function renderHealthDetails(body) {
+  byId("native-balance").innerHTML = "";
+  byId("native-balance").append(document.createTextNode(Number(body.nativeBalance).toFixed(6)));
+  const unit = document.createElement("small");
+  unit.textContent = ` ${body.nativeAsset}`;
+  byId("native-balance").append(unit);
+  byId("wallet-address").textContent = `${shortAddress(body.wallet)} · signer ready`;
+  byId("wallet-address").title = body.wallet;
+  if (body.musd) {
+    const amount = BigInt(body.musd.balanceAtomic);
+    const decimals = BigInt(body.musd.decimals);
+    const divisor = 10n ** decimals;
+    const whole = amount / divisor;
+    const fraction = (amount % divisor).toString().padStart(Number(decimals), "0").slice(0, 6);
+    byId("musd-balance").textContent = `${whole}.${fraction}`;
+    const musdUnit = document.createElement("small");
+    musdUnit.textContent = " MUSD";
+    byId("musd-balance").append(musdUnit);
+    byId("musd-contract").textContent = shortAddress(body.musd.address);
+    byId("musd-contract").title = body.musd.address;
+    byId("musd-card").classList.remove("hidden");
+  }
+  renderTroveHealth(body.trove);
+
+  const recipientSelect = byId("recipient");
+  recipientSelect.replaceChildren();
+  if (body.policy.configuredRecipients.length) {
+    for (const recipient of body.policy.configuredRecipients) {
+      const option = document.createElement("option");
+      option.value = recipient;
+      option.textContent = `${shortAddress(recipient)}${recipient.toLowerCase() === body.wallet.toLowerCase() ? " · own wallet" : ""}`;
+      option.title = recipient;
+      recipientSelect.append(option);
+    }
+    byId("request-button").disabled = false;
+    byId("setup-notice").classList.add("hidden");
+  } else {
+    recipientSelect.append(new Option("No destinations configured", ""));
+    byId("request-button").disabled = true;
+    const notice = byId("setup-notice");
+    notice.classList.remove("hidden");
+    notice.textContent = "Payments are paused until an approved recipient is configured.";
+  }
+
+  function renderTroveHealth(trove) {
+    const status = byId("trove-status");
+    const ratio = byId("trove-icr");
+    const collateral = byId("trove-collateral");
+    const debt = byId("trove-debt");
+    const policy = byId("trove-policy");
+    if (!trove || trove.status === "unavailable") {
+      status.textContent = "Trove state unavailable";
+      status.className = "status-pill danger";
+      ratio.textContent = "—";
+      collateral.textContent = "—";
+      debt.textContent = "—";
+      policy.textContent = "MUSD authorization is paused until protocol state can be verified.";
+      return;
+    }
+    if (trove.status === "inactive") {
+      status.textContent = "No active trove";
+      status.className = "status-pill muted";
+      ratio.textContent = "—";
+      collateral.textContent = "—";
+      debt.textContent = "—";
+      policy.textContent = "Standard MUSD spending limits apply; no active trove was found for this signer.";
+      return;
+    }
+    const icr = Number(formatAtomic(trove.icrAtomic));
+    ratio.textContent = `${(icr * 100).toFixed(1)}%`;
+    collateral.textContent = `${formatDisplayAtomic(trove.collateralAtomic, 4)} BTC`;
+    debt.textContent = `${formatDisplayAtomic(trove.debtAtomic, 2)} MUSD`;
+    collateral.title = `${formatAtomic(trove.collateralAtomic)} BTC`;
+    debt.title = `${formatAtomic(trove.debtAtomic)} MUSD`;
+    if (trove.risk === "healthy") {
+      status.textContent = "Healthy";
+      status.className = "status-pill success";
+      policy.textContent = "Standard MUSD spending limits apply while the trove remains above the 150% review buffer.";
+    } else if (trove.risk === "review_required") {
+      status.textContent = "Human review required";
+      status.className = "status-pill pending";
+      policy.textContent = "Every MUSD payment requires explicit human approval while the trove is between 110% and 150% ICR.";
+    } else {
+      status.textContent = "MUSD spending paused";
+      status.className = "status-pill danger";
+      policy.textContent = "New MUSD authorizations, approvals, and executions are blocked below the 110% minimum collateral ratio.";
+    }
+  }
+
+  if (body.musd) {
+    if (!byId("asset").querySelector('option[value="MUSD"]')) {
+      byId("asset").append(new Option("MUSD · Mezo Testnet", "MUSD"));
+    }
+    byId("amount-unit").textContent = "BTC";
+  } else {
+    byId("asset").querySelector('option[value="MUSD"]')?.remove();
+    byId("asset").value = "BTC";
+    byId("amount-unit").textContent = "BTC";
+    const notice = byId("setup-notice");
+    notice.classList.remove("hidden");
+    notice.textContent = "MUSD payments are temporarily unavailable.";
+    byId("request-button").disabled = true;
   }
 }
 
@@ -1119,6 +1164,7 @@ async function submitMerchantAuth(event) {
       byId("auth-email").value = "";
       byId("auth-password").value = "";
       renderAuthState();
+      await loadHealth();
       await loadMerchantWorkspace();
       await loadAudit().catch((error) => console.error("Audit refresh failed:", error));
       toast("Merchant account connected.", "success");
@@ -1143,6 +1189,7 @@ async function signOutMerchant() {
   authSession = undefined;
   localStorage.removeItem("relayguard.authSession");
   renderAuthState();
+  await loadHealth();
   await loadMerchantWorkspace();
 }
 
@@ -1564,6 +1611,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 byId("invoice-form").addEventListener("submit", createInvoice);
+byId("asset").addEventListener("change", updateUnit);
 byId("refresh-invoices").addEventListener("click", loadMerchantWorkspace);
 byId("merchant-wallet-connect").addEventListener("click", () => void verifyMerchantWallet());
 byId("merchant-name-save").addEventListener("click", () => void saveMerchantName());

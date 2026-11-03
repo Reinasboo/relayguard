@@ -498,8 +498,10 @@ async function loadHealth() {
       }
       const icr = Number(formatAtomic(trove.icrAtomic));
       ratio.textContent = `${(icr * 100).toFixed(1)}%`;
-      collateral.textContent = `${formatAtomic(trove.collateralAtomic)} BTC`;
-      debt.textContent = `${formatAtomic(trove.debtAtomic)} MUSD`;
+      collateral.textContent = `${formatDisplayAtomic(trove.collateralAtomic, 4)} BTC`;
+      debt.textContent = `${formatDisplayAtomic(trove.debtAtomic, 2)} MUSD`;
+      collateral.title = `${formatAtomic(trove.collateralAtomic)} BTC`;
+      debt.title = `${formatAtomic(trove.debtAtomic)} MUSD`;
       if (trove.risk === "healthy") {
         status.textContent = "Healthy";
         status.className = "status-pill success";
@@ -734,6 +736,18 @@ function formatAtomic(atomic, decimals = 18) {
   const unit = 10n ** BigInt(decimals);
   const whole = value / unit;
   const fraction = (value % unit).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""}`;
+}
+
+function formatDisplayAtomic(atomic, fractionDigits = 2, decimals = 18) {
+  const value = BigInt(atomic);
+  const unit = 10n ** BigInt(decimals);
+  const whole = (value / unit).toLocaleString("en-US");
+  const fraction = (value % unit)
+    .toString()
+    .padStart(decimals, "0")
+    .slice(0, fractionDigits)
+    .replace(/0+$/, "");
   return `${whole}${fraction ? `.${fraction}` : ""}`;
 }
 

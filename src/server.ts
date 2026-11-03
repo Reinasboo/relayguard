@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { config as loadDotenv } from "dotenv";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -16,7 +17,9 @@ import {
   isAddress,
   isHex,
   parseUnits,
-  type Address
+  verifyMessage,
+  type Address,
+  type Hex
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mezoTestnet } from "viem/chains";
@@ -402,6 +405,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const operatorApi =
     url.pathname === "/api/audit" ||
     url.pathname === "/api/payments" ||
+    url.pathname === "/api/merchant/profile" ||
+    url.pathname.startsWith("/api/merchant/wallet/") ||
+    url.pathname === "/api/merchant/x402/resources" ||
+    /^\/api\/merchant\/x402\/resources\/[^/]+$/.test(url.pathname) ||
+    /^\/api\/merchant\/x402\/resources\/[^/]+\/key$/.test(url.pathname) ||
     /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|cancel|execute|verify))?$/.test(url.pathname);
   if (operatorApi && !(await authenticatedUserId(req))) {
     response(res, 401, { error: "Sign in with your RelayGuard merchant account to access payment controls." });
@@ -421,11 +429,258 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   }
 
   if (req.method === "GET" && url.pathname === "/api/merchant") {
+    const userId = await authenticatedUserId(req);
+    const profile = userId ? await checkout.getMerchantProfile(userId) : undefined;
     response(res, 200, {
-      name: merchantName,
-      address: merchantAddress ?? null,
+      name: profile?.merchantName ?? merchantName,
+      address: profile?.walletVerified ? profile.merchantAddress ?? null : userId ? null : merchantAddress ?? null,
+      walletVerified: profile?.walletVerified ?? false,
       asset: "MUSD",
       tokenAddress: process.env.MEZO_TOKEN_ADDRESS ?? null
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/merchant/profile") {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to update your merchant profile." });
+      return;
+    }
+    const body = await readJson(req);
+    if (typeof body.merchantName !== "string" || !body.merchantName.trim() || body.merchantName.trim().length > 120) {
+      response(res, 400, { error: "Store name must be between 1 and 120 characters." });
+      return;
+    }
+    const updated = await checkout.updateMerchantName(userId, body.merchantName);
+    if (!updated) {
+      response(res, 409, { error: "Connect and verify your receiving wallet before saving your store name." });
+      return;
+    }
+    response(res, 200, { name: body.merchantName.trim() });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/merchant/wallet/challenge") {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to verify your receiving wallet." });
+      return;
+    }
+    const body = await readJson(req);
+    if (typeof body.address !== "string" || !isAddress(body.address)) {
+      response(res, 400, { error: "A valid EVM wallet address is required." });
+      return;
+    }
+    const id = randomUUID();
+    const now = Date.now();
+    const expiresAt = now + 5 * 60 * 1000;
+    const address = getAddress(body.address);
+    const message = [
+      "RelayGuard merchant wallet verification",
+      `Origin: ${requestOrigin(req)}`,
+      `Account: ${userId}`,
+      `Address: ${address}`,
+      "Network: Mezo Testnet (chain ID 31611)",
+      `Nonce: ${id}`,
+      `Issued At: ${new Date(now).toISOString()}`,
+      `Expiration Time: ${new Date(expiresAt).toISOString()}`
+    ].join("\n");
+    await checkout.createWalletChallenge({ id, merchantUserId: userId, address, message, expiresAt });
+    response(res, 200, { challengeId: id, message, address, expiresAt });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/merchant/wallet/verify") {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to verify your receiving wallet." });
+      return;
+    }
+    const body = await readJson(req);
+    if (
+      typeof body.challengeId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.challengeId) ||
+      typeof body.signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(body.signature)
+    ) {
+      response(res, 400, { error: "A wallet challenge ID and 65-byte signature are required." });
+      return;
+    }
+    const challenge = await checkout.consumeWalletChallenge(userId, body.challengeId);
+    if (!challenge) {
+      response(res, 409, { error: "Wallet verification challenge expired or was already used. Please try again." });
+      return;
+    }
+    let verified = false;
+    try {
+      verified = await verifyMessage({
+        address: getAddress(challenge.address),
+        message: challenge.message,
+        signature: body.signature as Hex
+      });
+    } catch {
+      verified = false;
+    }
+    if (!verified) {
+      response(res, 403, { error: "The connected wallet did not sign the requested verification message." });
+      return;
+    }
+    const profile = await checkout.getMerchantProfile(userId);
+    await checkout.saveVerifiedWallet(userId, profile?.merchantName ?? merchantName, challenge.address);
+    response(res, 200, {
+      name: profile?.merchantName ?? merchantName,
+      address: challenge.address,
+      walletVerified: true
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/merchant/x402/resources") {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to manage x402 resources." });
+      return;
+    }
+    response(res, 200, { resources: await checkout.listX402Resources(userId) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/merchant/x402/resources") {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to configure x402 resources." });
+      return;
+    }
+    const body = await readJson(req);
+    if (
+      typeof body.name !== "string" || typeof body.description !== "string" ||
+      typeof body.routePath !== "string" || typeof body.price !== "string" ||
+      (body.method !== "GET" && body.method !== "POST")
+    ) {
+      response(res, 400, { error: "Resource name, description, route path, price, and GET or POST method are required." });
+      return;
+    }
+    let amountAtomic: bigint;
+    try {
+      if (!/^\$\d+(?:\.\d{1,18})?$/.test(body.price)) throw new Error("invalid price");
+      amountAtomic = parseUnits(body.price.slice(1), 18);
+    } catch {
+      response(res, 400, { error: "Price must be a positive MUSD amount such as $0.01." });
+      return;
+    }
+    if (amountAtomic <= 0n) {
+      response(res, 400, { error: "Price must be greater than zero." });
+      return;
+    }
+    const profile = await checkout.getMerchantProfile(userId);
+    if (!profile?.walletVerified || !profile.merchantAddress) {
+      response(res, 409, { error: "Verify your receiving wallet before configuring x402 resources." });
+      return;
+    }
+    const secret = `rg_test_${randomBytes(32).toString("base64url")}`;
+    const resource = await checkout.createX402Resource({
+      merchantUserId: userId,
+      name: body.name,
+      description: body.description,
+      method: body.method,
+      routePath: body.routePath,
+      price: body.price,
+      keyPrefix: secret.slice(0, 16),
+      keyHash: createHash("sha256").update(secret, "utf8").digest("hex")
+    });
+    response(res, 201, {
+      resource,
+      apiKey: secret,
+      keyWarning: "Copy this API key now. RelayGuard stores only its hash and cannot display it again."
+    });
+    return;
+  }
+
+  const x402KeyMatch = url.pathname.match(/^\/api\/merchant\/x402\/resources\/([^/]+)\/key$/);
+  const x402ResourceMatch = url.pathname.match(/^\/api\/merchant\/x402\/resources\/([^/]+)$/);
+  if (req.method === "DELETE" && x402ResourceMatch) {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to delete x402 resources." });
+      return;
+    }
+    const deleted = await checkout.deleteX402Resource(
+      userId,
+      decodeURIComponent(x402ResourceMatch[1] ?? "")
+    );
+    if (!deleted) {
+      response(res, 404, { error: "x402 resource was not found for this merchant." });
+      return;
+    }
+    response(res, 200, { deleted: true });
+    return;
+  }
+
+  if (req.method === "POST" && x402KeyMatch) {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to rotate x402 credentials." });
+      return;
+    }
+    const resourceId = decodeURIComponent(x402KeyMatch[1] ?? "");
+    const secret = `rg_test_${randomBytes(32).toString("base64url")}`;
+    const rotated = await checkout.rotateX402ApiKey(
+      userId,
+      resourceId,
+      createHash("sha256").update(secret, "utf8").digest("hex"),
+      secret.slice(0, 16)
+    );
+    if (!rotated) {
+      response(res, 404, { error: "x402 resource was not found for this merchant." });
+      return;
+    }
+    response(res, 200, {
+      apiKey: secret,
+      keyWarning: "Copy this API key now. The previous key was revoked and cannot be restored."
+    });
+    return;
+  }
+
+  if (req.method === "DELETE" && x402KeyMatch) {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      response(res, 401, { error: "Sign in to revoke x402 credentials." });
+      return;
+    }
+    await checkout.revokeX402ApiKey(userId, decodeURIComponent(x402KeyMatch[1] ?? ""));
+    response(res, 200, { revoked: true });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/sdk/x402-config") {
+    const bearer = req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.slice("Bearer ".length)
+      : req.headers["x-relayguard-api-key"];
+    if (typeof bearer !== "string" || !/^rg_test_[A-Za-z0-9_-]{43}$/.test(bearer)) {
+      response(res, 401, { error: "A valid RelayGuard merchant API key is required." });
+      return;
+    }
+    const keyHash = createHash("sha256").update(bearer, "utf8").digest("hex");
+    const resource = await checkout.getX402ResourceByApiKey(keyHash);
+    if (!resource?.payTo) {
+      response(res, 401, { error: "RelayGuard merchant API key is invalid or revoked." });
+      return;
+    }
+    const details = await assetDetails("MUSD");
+    response(res, 200, {
+      resource: {
+        id: resource.id,
+        name: resource.name,
+        method: resource.method,
+        routePath: resource.routePath,
+        price: resource.price,
+        description: resource.description,
+        payTo: resource.payTo
+      },
+      network: "eip155:31611",
+      chainId: 31611,
+      tokenAddress: details.tokenAddress,
+      facilitatorUrl: x402FacilitatorUrl,
+      testnet: true
     });
     return;
   }
@@ -447,8 +702,9 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 401, { error: "Sign in to create merchant invoices." });
       return;
     }
-    if (!merchantAddress || !allowedRecipients.includes(merchantAddress)) {
-      response(res, 503, { error: "Set MEZO_MERCHANT_ADDRESS to a valid address in MEZO_ALLOWED_RECIPIENTS before creating merchant invoices." });
+    const profile = await checkout.getMerchantProfile(userId);
+    if (!profile?.walletVerified || !profile.merchantAddress) {
+      response(res, 409, { error: "Connect and verify your merchant receiving wallet before creating invoices." });
       return;
     }
     if (typeof body.amount !== "string" || typeof body.description !== "string") {
@@ -473,8 +729,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     }
     const invoice = await checkout.create({
       merchantUserId: userId,
-      merchantName,
-      merchantAddress,
+      merchantName: profile.merchantName,
+      merchantAddress: profile.merchantAddress,
       amountAtomic: amountAtomic.toString(),
       description,
       expiresAt: Date.now() + expiresInHours * 60 * 60 * 1000
@@ -522,8 +778,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 400, { error: "A valid Mezo testnet payer address is required." });
       return;
     }
-    if (!merchantAddress || invoice.merchantAddress !== merchantAddress) {
-      response(res, 409, { error: "Invoice merchant is not configured for this payment service." });
+    if (!isAddress(invoice.merchantAddress)) {
+      response(res, 409, { error: "Invoice merchant receiving wallet is invalid." });
       return;
     }
     const payerAddress = getAddress(body.payerAddress);

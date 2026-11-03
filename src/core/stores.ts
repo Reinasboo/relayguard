@@ -50,6 +50,43 @@ export interface AuthorizationStore {
 }
 
 export interface CheckoutStore {
+  getMerchantProfile(merchantUserId: string): Awaitable<MerchantProfile | undefined>;
+  updateMerchantName(merchantUserId: string, merchantName: string): Awaitable<boolean>;
+  createWalletChallenge(input: {
+    readonly id: string;
+    readonly merchantUserId: string;
+    readonly address: string;
+    readonly message: string;
+    readonly expiresAt: number;
+  }): Awaitable<void>;
+  consumeWalletChallenge(
+    merchantUserId: string,
+    challengeId: string,
+    now?: number
+  ): Awaitable<MerchantWalletChallenge | undefined>;
+  saveVerifiedWallet(merchantUserId: string, merchantName: string, address: string): Awaitable<void>;
+  createX402Resource(input: {
+    readonly merchantUserId: string;
+    readonly name: string;
+    readonly method: "GET" | "POST";
+    readonly routePath: string;
+    readonly price: string;
+    readonly description: string;
+    readonly keyHash: string;
+    readonly keyPrefix: string;
+    readonly now?: number;
+  }): Awaitable<MerchantX402Resource>;
+  listX402Resources(merchantUserId: string): Awaitable<readonly MerchantX402Resource[]>;
+  rotateX402ApiKey(
+    merchantUserId: string,
+    resourceId: string,
+    keyHash: string,
+    keyPrefix: string,
+    now?: number
+  ): Awaitable<boolean>;
+  getX402ResourceByApiKey(keyHash: string, now?: number): Awaitable<MerchantX402Resource | undefined>;
+  revokeX402ApiKey(merchantUserId: string, resourceId: string, now?: number): Awaitable<void>;
+  deleteX402Resource(merchantUserId: string, resourceId: string): Awaitable<boolean>;
   create(input: {
     readonly merchantUserId: string;
     readonly merchantName: string;
@@ -67,4 +104,35 @@ export interface CheckoutStore {
   settle(id: string, status: "paid" | "failed"): Awaitable<CheckoutInvoice>;
   ready(): Promise<void>;
   close(): Awaitable<void>;
+}
+
+export interface MerchantProfile {
+  readonly userId: string;
+  readonly merchantName: string;
+  readonly merchantAddress?: string;
+  readonly walletVerified: boolean;
+}
+
+export interface MerchantWalletChallenge {
+  readonly id: string;
+  readonly merchantUserId: string;
+  readonly address: string;
+  readonly message: string;
+  readonly expiresAt: number;
+}
+
+export interface MerchantX402Resource {
+  readonly id: string;
+  readonly merchantUserId: string;
+  readonly name: string;
+  readonly method: "GET" | "POST";
+  readonly routePath: string;
+  readonly price: string;
+  readonly description: string;
+  readonly createdAt: number;
+  readonly keyPrefix?: string;
+  readonly keyCreatedAt?: number;
+  readonly keyLastUsedAt?: number;
+  readonly keyRevokedAt?: number;
+  readonly payTo?: string;
 }

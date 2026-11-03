@@ -29,6 +29,28 @@ try {
   localStorage.removeItem("relayguard.authSession");
 }
 
+async function saveMerchantName() {
+  const merchantName = byId("merchant-display-name").value.trim();
+  if (!merchantName || merchantName.length > 120) {
+    toast("Enter a store name between 1 and 120 characters.", "error");
+    return;
+  }
+  const button = byId("merchant-name-save");
+  button.disabled = true;
+  try {
+    await api("/api/merchant/profile", {
+      method: "POST",
+      body: JSON.stringify({ merchantName })
+    });
+    byId("merchant-name").textContent = merchantName;
+    toast("Store name saved for new checkouts.", "success");
+  } catch (error) {
+    toast(error.message, "error");
+  } finally {
+    button.disabled = byId("merchant-wallet-connect").dataset.walletVerified !== "true";
+  }
+}
+
 function persistAuthSession(session) {
   authSession = {
     access_token: session.access_token,
@@ -760,11 +782,20 @@ byId("refresh-audit").addEventListener("click", () => loadAudit().catch((error) 
 
 function setView(view) {
   const isPayPage = window.location.pathname.startsWith("/pay/");
+  byId("view-crumb").textContent = view === "faq"
+    ? "Field guide"
+    : view === "merchant"
+      ? "Merchant workspace"
+      : "Payment workspace";
   byId("console-view").classList.toggle("hidden", isPayPage || view !== "console");
   byId("merchant-view").classList.toggle("hidden", isPayPage || view !== "merchant");
+  byId("faq-view").classList.toggle("hidden", isPayPage || view !== "faq");
   byId("checkout-view").classList.toggle("hidden", !isPayPage);
   document.querySelectorAll(".rail-link[data-view]").forEach((link) => {
-    link.classList.toggle("active", link.dataset.view === view && !isPayPage);
+    const active = link.dataset.view === view && !isPayPage;
+    link.classList.toggle("active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
   });
   byId("rail")?.classList.toggle("hidden", isPayPage);
   byId("footer")?.classList.toggle("hidden", isPayPage);
@@ -794,17 +825,38 @@ async function loadMerchantWorkspace() {
   try {
     const { body: merchantBody } = await api("/api/merchant");
     byId("merchant-name").textContent = merchantBody.name;
-    byId("merchant-address").textContent = merchantBody.address
-      ? `${shortAddress(merchantBody.address)} · MUSD payments`
-      : "Merchant receiving wallet unavailable";
+    byId("merchant-display-name").value = merchantBody.name;
+    const isMerchantSignedIn = Boolean(authSession?.access_token);
+    const walletVerified = isMerchantSignedIn && merchantBody.walletVerified && merchantBody.address;
+    byId("merchant-wallet-connect").dataset.walletVerified = String(Boolean(walletVerified));
+    byId("merchant-address").textContent = walletVerified
+      ? `${shortAddress(merchantBody.address)} · verified receiving wallet`
+      : isMerchantSignedIn
+        ? "Connect and verify your wallet to receive MUSD"
+        : "Sign in and connect your own receiving wallet";
+    byId("merchant-wallet-state").textContent = walletVerified
+      ? `${merchantBody.address} · verified`
+      : isMerchantSignedIn
+        ? "No verified receiving wallet yet."
+        : "Sign in to connect your wallet.";
+    byId("merchant-wallet-connect").disabled = !isMerchantSignedIn;
+    byId("merchant-wallet-connect").textContent = walletVerified ? "Change wallet" : "Connect & verify";
+    byId("merchant-name-save").disabled = !walletVerified;
+    byId("invoice-button").disabled = !walletVerified;
+    byId("x402-resource-button").disabled = !walletVerified;
     if (!authSession?.access_token) {
-      byId("invoice-button").disabled = true;
       byId("invoice-list").textContent = "Sign in with Supabase to view your merchant invoices.";
+      byId("merchant-x402-resources").textContent = "Sign in and verify your wallet to set up product integrations.";
+      return;
+    }
+    if (!walletVerified) {
+      byId("invoice-list").textContent = "Verify your own receiving wallet to create invoices.";
+      byId("merchant-x402-resources").textContent = "Verify your receiving wallet to create x402 integrations.";
       return;
     }
     const { body: invoiceBody } = await api("/api/invoices");
-    byId("invoice-button").disabled = !merchantBody.address;
     renderInvoiceList(invoiceBody.invoices);
+    await loadMerchantX402Resources();
   } catch (error) {
     console.error("Merchant workspace could not be loaded:", error);
     const list = byId("invoice-list");
@@ -813,6 +865,181 @@ async function loadMerchantWorkspace() {
     message.className = "audit-empty";
     message.textContent = `Invoices could not be loaded: ${error.message}`;
     list.append(message, actionButton("Retry", "button button-quiet", () => void loadMerchantWorkspace()));
+  }
+}
+
+async function loadMerchantX402Resources() {
+  const { body } = await api("/api/merchant/x402/resources");
+  renderMerchantX402Resources(body.resources);
+}
+
+function renderMerchantX402Resources(resources) {
+  const list = byId("merchant-x402-resources");
+  list.replaceChildren();
+  if (!resources.length) {
+    const empty = document.createElement("div");
+    empty.className = "audit-empty";
+    empty.textContent = "No API resources yet. Add a route above to start accepting exact MUSD payments in your own product.";
+    list.append(empty);
+    return;
+  }
+  for (const resource of resources) {
+    const card = document.createElement("article");
+    card.className = "merchant-x402-resource";
+    const copy = document.createElement("div");
+    copy.className = "merchant-x402-resource-copy";
+    const title = document.createElement("strong");
+    title.textContent = resource.name;
+    const details = document.createElement("small");
+    details.textContent = `${resource.method} ${resource.routePath} · $${resource.price.slice(1)} MUSD`;
+    copy.append(title, details);
+    const status = document.createElement("span");
+    status.className = `status-pill ${resource.keyPrefix && !resource.keyRevokedAt ? "success" : "pending"}`;
+    status.textContent = resource.keyPrefix && !resource.keyRevokedAt ? "KEY ACTIVE" : "KEY REVOKED";
+    const actions = document.createElement("div");
+    actions.className = "merchant-x402-resource-actions";
+    actions.append(actionButton(
+      resource.keyPrefix && !resource.keyRevokedAt ? "Rotate key" : "Create key",
+      "button button-quiet",
+      () => void rotateMerchantX402Key(resource.id)
+    ));
+    if (resource.keyPrefix && !resource.keyRevokedAt) {
+      actions.append(actionButton("Revoke", "button button-quiet", () => void revokeMerchantX402Key(resource.id)));
+    }
+    actions.append(actionButton("Delete", "button button-quiet", () => void deleteMerchantX402Resource(resource.id)));
+    card.append(copy, status, actions);
+    list.append(card);
+  }
+}
+
+async function verifyMerchantWallet() {
+  const provider = window.ethereum;
+  if (!provider) {
+    toast("Open this page in a Mezo-compatible wallet browser to connect your receiving wallet.", "error");
+    return;
+  }
+  const button = byId("merchant-wallet-connect");
+  button.disabled = true;
+  try {
+    await ensureMezoWallet(provider);
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+    const address = Array.isArray(accounts) ? accounts[0] : undefined;
+    if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      throw new Error("The wallet did not return a valid EVM account.");
+    }
+    byId("merchant-wallet-state").textContent = `Requesting a one-time ownership signature for ${shortAddress(address)}…`;
+    const { body: challenge } = await api("/api/merchant/wallet/challenge", {
+      method: "POST",
+      body: JSON.stringify({ address })
+    });
+    const signature = await provider.request({
+      method: "personal_sign",
+      params: [challenge.message, challenge.address]
+    });
+    if (typeof signature !== "string") throw new Error("Wallet did not return a signature.");
+    await api("/api/merchant/wallet/verify", {
+      method: "POST",
+      body: JSON.stringify({ challengeId: challenge.challengeId, signature })
+    });
+    toast("Receiving wallet verified. Invoice funds settle directly to this address.", "success");
+    await loadMerchantWorkspace();
+  } catch (error) {
+    byId("merchant-wallet-state").textContent = error.message;
+    toast(error.message, "error");
+  } finally {
+    button.disabled = !authSession?.access_token;
+  }
+}
+
+function showX402ApiKey(apiKey, warning) {
+  const target = byId("x402-resource-credential");
+  target.replaceChildren();
+  target.classList.remove("hidden");
+  const heading = document.createElement("strong");
+  heading.textContent = warning;
+  const keyLine = document.createElement("div");
+  keyLine.className = "x402-api-key";
+  const key = document.createElement("code");
+  key.textContent = apiKey;
+  const copy = actionButton("Copy key", "button button-quiet", async () => {
+    await navigator.clipboard.writeText(apiKey);
+    toast("Merchant API key copied.", "success");
+  });
+  keyLine.append(key, copy);
+  const snippet = document.createElement("pre");
+  snippet.textContent = [
+    "import { createRelayGuardX402Middleware } from \"./relayguard-express.js\";",
+    "",
+    "app.use(await createRelayGuardX402Middleware({",
+    "  apiKey: process.env.RELAYGUARD_API_KEY",
+    "}));"
+  ].join("\n");
+  const guide = document.createElement("a");
+  guide.href = "https://github.com/Reinasboo/relayguard/blob/main/docs/integrations/express-x402.md";
+  guide.target = "_blank";
+  guide.rel = "noreferrer noopener";
+  guide.textContent = "Open integration guide ↗";
+  target.append(heading, keyLine, snippet, guide);
+}
+
+async function createMerchantX402Resource(event) {
+  event.preventDefault();
+  const button = byId("x402-resource-button");
+  button.disabled = true;
+  try {
+    const { body } = await api("/api/merchant/x402/resources", {
+      method: "POST",
+      body: JSON.stringify({
+        name: byId("x402-resource-name").value.trim(),
+        routePath: byId("x402-resource-path").value.trim(),
+        method: byId("x402-resource-method").value,
+        price: `$${byId("x402-resource-price").value.trim()}`,
+        description: byId("x402-resource-description").value.trim()
+      })
+    });
+    showX402ApiKey(body.apiKey, body.keyWarning);
+    await loadMerchantX402Resources();
+    toast("x402 endpoint configured for your verified wallet.", "success");
+  } catch (error) {
+    toast(error.message, "error");
+  } finally {
+    button.disabled = !authSession?.access_token ||
+      byId("merchant-wallet-connect").dataset.walletVerified !== "true";
+  }
+}
+
+async function rotateMerchantX402Key(resourceId) {
+  if (!window.confirm("Rotate this API key? The current key will stop working immediately.")) return;
+  try {
+    const { body } = await api(`/api/merchant/x402/resources/${encodeURIComponent(resourceId)}/key`, {
+      method: "POST"
+    });
+    showX402ApiKey(body.apiKey, body.keyWarning);
+    await loadMerchantX402Resources();
+  } catch (error) {
+    toast(error.message, "error");
+  }
+}
+
+async function revokeMerchantX402Key(resourceId) {
+  if (!window.confirm("Revoke this API key? Your product will stop issuing payment challenges until you create a new key.")) return;
+  try {
+    await api(`/api/merchant/x402/resources/${encodeURIComponent(resourceId)}/key`, { method: "DELETE" });
+    await loadMerchantX402Resources();
+    toast("Merchant API key revoked.", "success");
+  } catch (error) {
+    toast(error.message, "error");
+  }
+}
+
+async function deleteMerchantX402Resource(resourceId) {
+  if (!window.confirm("Delete this x402 resource and its key? Its protected endpoint will stop accepting payments.")) return;
+  try {
+    await api(`/api/merchant/x402/resources/${encodeURIComponent(resourceId)}`, { method: "DELETE" });
+    await loadMerchantX402Resources();
+    toast("x402 resource and credential deleted.", "success");
+  } catch (error) {
+    toast(error.message, "error");
   }
 }
 
@@ -828,6 +1055,14 @@ function renderAuthState(message) {
   byId("auth-signout").classList.toggle("hidden", !signedIn);
   byId("auth-signup").classList.toggle("hidden", signedIn || !appConfig?.supabase);
   byId("merchant-auth-form").classList.toggle("hidden", signedIn || !appConfig?.supabase);
+  if (!signedIn) {
+    byId("x402-resource-credential").replaceChildren();
+    byId("x402-resource-credential").classList.add("hidden");
+    byId("merchant-wallet-connect").disabled = true;
+    byId("merchant-wallet-connect").dataset.walletVerified = "false";
+    byId("merchant-name-save").disabled = true;
+    byId("x402-resource-button").disabled = true;
+  }
 }
 
 async function loadAppConfig() {
@@ -1275,22 +1510,64 @@ async function payCheckout() {
   }
 }
 
-document.querySelectorAll(".rail-link[data-view]").forEach((link) => {
+document.querySelectorAll("[data-view]").forEach((link) => {
   link.addEventListener("click", (event) => {
     event.preventDefault();
     const view = link.dataset.view;
-    if (view === "merchant") {
-      history.replaceState(null, "", "/#merchant");
-      setView("merchant");
-      loadMerchantWorkspace();
-    } else {
-      history.replaceState(null, "", "/");
-      setView("console");
-    }
+    if (!["console", "merchant", "faq"].includes(view)) return;
+    history.replaceState(null, "", view === "console" ? "/" : `/#${view}`);
+    setView(view);
+    if (view === "merchant") loadMerchantWorkspace();
   });
+});
+const faqSearch = byId("faq-search");
+const faqFilters = [...document.querySelectorAll("[data-faq-filter]")];
+const faqItems = [...document.querySelectorAll(".faq-item")];
+function updateFaqResults() {
+  const query = faqSearch.value.trim().toLocaleLowerCase();
+  const category = document.querySelector(".faq-filter.active")?.dataset.faqFilter ?? "all";
+  let visible = 0;
+  for (const item of faqItems) {
+    const matchesCategory = category === "all" || item.dataset.faqCategory === category;
+    const matchesSearch = !query || item.textContent.toLocaleLowerCase().includes(query);
+    const show = matchesCategory && matchesSearch;
+    item.classList.toggle("hidden", !show);
+    if (show) visible += 1;
+  }
+  byId("faq-result-count").textContent = `${visible} ${visible === 1 ? "answer" : "answers"}`;
+  byId("faq-no-results").classList.toggle("hidden", visible !== 0);
+}
+faqSearch.addEventListener("input", updateFaqResults);
+faqFilters.forEach((filter) => {
+  filter.addEventListener("click", () => {
+    faqFilters.forEach((item) => item.classList.toggle("active", item === filter));
+    updateFaqResults();
+  });
+});
+byId("faq-clear-search").addEventListener("click", () => {
+  faqSearch.value = "";
+  faqFilters.forEach((item) => item.classList.toggle("active", item.dataset.faqFilter === "all"));
+  updateFaqResults();
+  faqSearch.focus();
+});
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isEditing = target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  if (event.key === "/" && !isEditing && !byId("faq-view").classList.contains("hidden")) {
+    event.preventDefault();
+    faqSearch.focus();
+  } else if (event.key === "Escape" && target === faqSearch) {
+    faqSearch.value = "";
+    updateFaqResults();
+    faqSearch.blur();
+  }
 });
 byId("invoice-form").addEventListener("submit", createInvoice);
 byId("refresh-invoices").addEventListener("click", loadMerchantWorkspace);
+byId("merchant-wallet-connect").addEventListener("click", () => void verifyMerchantWallet());
+byId("merchant-name-save").addEventListener("click", () => void saveMerchantName());
+byId("merchant-x402-form").addEventListener("submit", createMerchantX402Resource);
 byId("merchant-auth-form").addEventListener("submit", submitMerchantAuth);
 byId("auth-signup").addEventListener("click", (event) => {
   const formEvent = new Event("submit", { bubbles: true, cancelable: true });
@@ -1325,11 +1602,14 @@ if (window.location.pathname.startsWith("/pay/")) {
   loadCheckoutPage();
 } else {
   loadAppConfig();
-  setView(window.location.hash === "#merchant" ? "merchant" : "console");
+  const initialView = ["#merchant", "#faq"].includes(window.location.hash)
+    ? window.location.hash.slice(1)
+    : "console";
+  setView(initialView);
   loadHealth();
   loadAudit();
   if (authSession?.access_token) {
     restoreCurrentPayment();
   }
-  if (window.location.hash === "#merchant") loadMerchantWorkspace();
+  if (initialView === "merchant") loadMerchantWorkspace();
 }

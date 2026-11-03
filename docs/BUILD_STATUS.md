@@ -1,10 +1,10 @@
 # Build status
 
-Updated: 2026-10-26
+Updated: 2026-11-03
 
 ## Product
 
-RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Mezo product. Merchants can accept QR invoices from people or publish a protected HTTP resource that agents unlock by paying MUSD. Both routes pay the same merchant wallet; merchant/operator controls use Supabase Auth. See the [Mezo product strategy](./hackathons/mezo/PRODUCT_STRATEGY.md).
+RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Mezo product. Each merchant verifies a receiving wallet, accepts direct-to-wallet QR invoice payments, and can configure their own product's x402 API route with a merchant-scoped key. Buyers pay in MUSD; merchant/operator controls use Supabase Auth. See the [Mezo product strategy](./hackathons/mezo/PRODUCT_STRATEGY.md) and [Express x402 integration guide](./integrations/express-x402.md).
 
 ## Implemented
 
@@ -13,8 +13,12 @@ RelayGuard combines **MUSD merchant checkout and x402 paid resources** in one Me
 - Versioned typed adapter contract and registry. Mezo supports native BTC and testnet MUSD; Solana x402, NEAR, and Lightning remain fail-closed adapter foundations.
 - Local Mezo Testnet console and API for wallet/network status, policy review, explicit operator execution, receipt verification, and audit evidence.
 - Merchant workspace, durable MUSD invoices, expiry and reservation controls, shareable checkout URLs, locally generated QR codes, and direct buyer-wallet signing.
+- Merchant-owned receiving wallets verified with a one-time Mezo wallet signature; each invoice stores its merchant-specific receiver and settlement verification checks that exact address.
+- Merchant-controlled store name is saved to the merchant profile and appears on newly generated checkout invoices.
+- Merchant-scoped x402 resource configuration, one-time API key disclosure with hashed storage, key rotation/revocation, and an Express adapter for merchants' own API routes. MUSD settles directly to each merchant's verified wallet through the configured x402 facilitator.
 - Browser x402 EVM client and Express payment middleware for a `$0.001 MUSD` protected resource on Mezo Testnet. Mezo facilitator capability sync succeeds; unpaid HTTP requests return 402 with the expected canonical MUSD token, amount, recipient, and chain ID.
 - Supabase CLI 2.122.0 authenticated and linked to project `relayguard`; both hosted migrations applied and verified. Email Auth provider enabled, local callback URLs allowlisted, publishable key configured in ignored local app config. Merchant invoices are user-ID scoped; operator audit/payment endpoints require a verified Supabase bearer token.
+- The merchant-wallet/x402-resource migration `20261103030000` is present in source but has not yet been applied to the hosted database or deployed.
 - Separate merchant wallet generated and stored in ignored `.env.wallets.local`; buyer/operator wallet retained separately. No wallet key was committed or printed as output.
 - Vercel function entry point and deployment config are built. All required production environment variable names are configured; live read-only Supabase Postgres readiness and audit-chain checks pass. No deployment has been published yet.
 - Invoice authorization binds the payer, merchant, exact MUSD amount, and policy record. Settlement requires a matching successful MUSD `Transfer` event and exact sender, recipient, and amount before the invoice becomes paid.

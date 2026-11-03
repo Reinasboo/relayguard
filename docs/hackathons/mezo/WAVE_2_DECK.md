@@ -115,18 +115,6 @@ These are planning assumptions, not current product charges. RelayGuard does not
 
 ---
 
-## Milestones — proposed dates
-
-| Date | Milestone | Proof of completion |
-|---|---|---|
-| **Nov 10, 2026** | Complete controlled validation of deployed trove-aware policy | Record decisions above 150%, between 110–150%, below 110%, and on RPC failure without risking real-value funds |
-| **Nov 17, 2026** | Verify customer checkout end to end on a second device | Merchant login, invoice creation, QR scan, wallet signature, and confirmed receipt |
-| **Dec 1, 2026** | Run a small merchant/agent pilot | Interview 3 merchants; measure invoice completion, API unlocks, settlement time, and support issues |
-
-Dates and pilot targets are proposals and should be confirmed before external use. The Wave 2 policy is deployed; the November 10 milestone is validation, not deployment.
-
----
-
 ## Team
 
 **Praise — solo builder**

@@ -8,12 +8,14 @@ Mezo's official [Borrow and Mint MUSD guide](https://mezo.org/docs/users/borrow/
 
 ## Product
 
-**RelayGuard** connects MUSD merchant acceptance to MUSD-powered software distribution in one product. A merchant can create a MUSD-denominated invoice with a shareable checkout URL/QR for a person, or expose a low-cost x402-protected resource for an agent. The person signs an exact direct MUSD transfer from their Mezo-compatible wallet. The agent signs x402 payment authorization and the Mezo facilitator verifies and settles it, sponsoring gas. Both workflows target the merchant's same receiving wallet.
+**RelayGuard** connects MUSD merchant acceptance to MUSD-powered software distribution in one product. Each merchant signs in, proves ownership of a Mezo wallet with a one-time signature, and can create MUSD-denominated invoices that settle directly to that wallet. For software agents, a merchant registers a route on their own API, installs the RelayGuard Express adapter, and uses a scoped server-side API key. The agent signs x402 payment authorization; the configured facilitator verifies and settles the exact payment directly to that merchant's verified wallet.
 
 This is an access-and-distribution product rather than another generic transfer screen:
 
 - Merchants can quote small MUSD amounts without building a wallet connection, token transfer, QR, invoice, or settlement watcher.
 - Agents can pay for a protected HTTP resource in MUSD using the x402 protocol, without a custom integration or buyer-side gas transaction.
+- Merchants control their own payout destination and API resources; credentials are scoped per resource, stored only as hashes, and can be rotated or revoked.
+- The Express adapter obtains each resource's verified destination and price from RelayGuard, then protects the merchant's own route; the merchant keeps ownership of the API response and its application server.
 - The customer's wallet remains the signer; RelayGuard does not take custody of the checkout payment.
 - The merchant receives MUSD directly; the merchant does not need to borrow MUSD to accept it.
 - The checkout page links to Mezo's own MUSD onboarding guidance when a customer has not acquired MUSD.
@@ -21,7 +23,7 @@ This is an access-and-distribution product rather than another generic transfer 
 
 ## Implemented flow
 
-1. Operator configures a merchant name/address; the merchant address must also be in the payment allowlist.
+1. Merchant signs in, connects a Mezo-compatible wallet, and signs a one-time message proving control of the receiving address.
 2. Merchant creates a fixed-amount MUSD invoice with an expiry.
 3. RelayGuard stores the invoice durably and returns a shareable link and locally generated QR image.
 4. Customer wallet switches to Mezo Testnet and connects from the checkout page.
@@ -30,17 +32,17 @@ This is an access-and-distribution product rather than another generic transfer 
 7. Backend persists the transaction reference, reads the Mezo receipt, decodes the matching `Transfer` event, and checks sender, recipient, amount, asset, and authorization before marking the invoice paid.
 8. If the wallet rejects before broadcast, the authorization is cancelled and the invoice is released. If the wallet broadcasts but the API response fails, the page attempts reconciliation and warns the customer not to pay again.
 
-The connected x402 resource uses the Mezo facilitator's `exact` scheme at `eip155:31611`. An unpaid request returns a protocol 402 response naming the official MUSD token, exact price, and merchant recipient. The browser uses the x402 EVM client and the connected wallet to create the typed-data authorization; the resource unlocks only after a successful facilitator settlement response.
+The merchant's x402 route uses the facilitator's `exact` scheme at `eip155:31611`. An unpaid request returns a protocol 402 response naming the official MUSD token, exact price, and merchant recipient. An x402-compatible client signs the typed-data authorization; the merchant's route unlocks only after successful facilitator settlement. RelayGuard's management API and Express adapter are implemented in source, but the new hosted migration and production deployment still need to be applied and verified.
 
 ## Honest demo limitations
 
-- The merchant receiving wallet is `0x840E5bBF20D725f581752f8A4021ADd730550d47`; its private key is kept in ignored `.env.wallets.local` and must not be exposed.
+- The verified-wallet flow is implemented, but browser wallet signing and merchant-specific settlement still need fresh end-to-end testing against the production deployment.
 - The test buyer/operator wallet borrowed 1,800 MUSD and completed both a 1.00 MUSD merchant invoice payment and a 0.001 MUSD x402 resource payment. Both transactions settled to the same merchant receiver and were verified.
 - The merchant receiver now holds 1.001 MUSD from those test transactions. These are testnet amounts and transactions, not evidence of mainnet readiness.
 - The borrower has an active testnet trove with 0.045 BTC collateral and approximately 2,001.8 MUSD opening debt, including the MUSD gas compensation and issuance fee. This testnet collateral remains subject to the same protocol liquidation rules; do not use a mainnet wallet for a demo.
 - The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app), with Vercel Functions and Supabase Postgres persistence. Health/config and x402 challenge responses are live; a previous QR route issue was fixed, but the full authenticated invoice-to-wallet-payment flow still needs a fresh production verification.
 - Local development defaults to `127.0.0.1` and SQLite. Production runtime requires `DATABASE_URL`; both Supabase migrations are applied and the live database readiness check passed.
-- Merchant receiving details are configured for the demo merchant. Multi-merchant onboarding and production operational hardening remain future work.
+- The merchant-wallet/x402-resource migration `20261103030000` has not yet been applied to production. Until migration and deployment verification are complete, the multi-merchant UI and API are not ready for production use.
 - The previously completed BTC transaction proves the Mezo execution/receipt path only; it is not MUSD checkout evidence.
 
 ## Wave 2: protocol-aware spending policy

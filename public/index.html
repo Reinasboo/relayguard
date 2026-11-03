@@ -20,6 +20,7 @@
         <div class="rail-label">WORKSPACE</div>
         <a class="rail-link active" href="/" data-view="console"><span class="rail-icon">◈</span>Payments</a>
         <a class="rail-link" href="#merchant" data-view="merchant"><span class="rail-icon">▣</span>Merchant</a>
+        <a class="rail-link" href="#faq" data-view="faq"><span class="rail-icon">?</span>FAQ</a>
         <div class="rail-note">
           <span class="live-dot"></span>
           <div><strong>Mezo Testnet</strong><small>Chain ID 31611</small></div>
@@ -29,7 +30,7 @@
 
       <main class="main">
         <header class="topbar">
-          <div class="crumb">RelayGuard <span>/</span> Payment workspace</div>
+          <div class="crumb">RelayGuard <span>/</span> <span id="view-crumb">Payment workspace</span></div>
           <div class="network-chip"><span class="live-dot"></span><span id="network-label">Connecting to Mezo…</span></div>
         </header>
 
@@ -175,6 +176,16 @@
             </form>
             <div id="auth-state" class="notice">Connecting account…</div>
             <div class="auth-session-actions"><button id="auth-signout" class="button button-quiet hidden" type="button">Sign out</button></div>
+            <div class="merchant-wallet-settings">
+              <div class="merchant-wallet-profile">
+                <label class="field">Store name shown to customers<input id="merchant-display-name" maxlength="120" value="RelayGuard Test Merchant"></label>
+                <button id="merchant-name-save" class="button button-quiet" type="button" disabled>Save name</button>
+              </div>
+              <div class="merchant-wallet-profile">
+                <div><span class="eyebrow">YOUR RECEIVING WALLET</span><strong id="merchant-wallet-state">Sign in to connect your wallet.</strong><small>Prove ownership with one signature. RelayGuard never asks for your private key.</small></div>
+                <button id="merchant-wallet-connect" class="button button-quiet" type="button" disabled>Connect &amp; verify</button>
+              </div>
+            </div>
           </article>
           <section class="merchant-grid">
             <article class="panel create-invoice-panel">
@@ -204,7 +215,23 @@
               <div id="invoice-list" class="invoice-list"><div class="audit-empty">Loading merchant invoices…</div></div>
             </article>
           </section>
-          <div class="merchant-note"><span class="merchant-note-icon">i</span><span>Payments are made in MUSD on Mezo Testnet. The buyer reviews and authorizes each transfer in their own wallet.</span></div>
+          <div class="merchant-note"><span class="merchant-note-icon">i</span><span>Payments are made in MUSD on Mezo Testnet. Each invoice settles directly to your verified wallet. The buyer reviews and authorizes the transfer in their own wallet.</span></div>
+          <section class="panel merchant-x402">
+            <div class="panel-heading"><div><div class="eyebrow">YOUR PRODUCT · x402</div><h2>Monetize an API endpoint</h2></div><span class="workflow-mark">03</span></div>
+            <p class="auth-copy">Register a route from your own API. RelayGuard gives you a scoped API key and a small Express adapter that loads your exact MUSD price and verified receiving wallet. Your server keeps the resource and returns it only after facilitator-confirmed settlement.</p>
+            <form id="merchant-x402-form" class="merchant-x402-form">
+              <label class="field">Resource name<input id="x402-resource-name" maxlength="80" value="Premium API response" required></label>
+              <label class="field">Your API route<input id="x402-resource-path" maxlength="160" value="/api/premium" pattern="/[A-Za-z0-9/_-]*" required><small class="field-help">Exact path on your own product; no query strings.</small></label>
+              <label class="field">Method<select id="x402-resource-method"><option>GET</option><option>POST</option></select></label>
+              <label class="field">Price
+                <div class="input-with-unit"><input id="x402-resource-price" inputmode="decimal" value="0.01" required><span>MUSD</span></div>
+              </label>
+              <label class="field merchant-x402-description">What does the buyer get?<input id="x402-resource-description" maxlength="240" value="Access to the premium API response" required></label>
+              <button id="x402-resource-button" class="button button-primary" type="submit" disabled><span>Create integration</span><span>→</span></button>
+            </form>
+            <div id="x402-resource-credential" class="x402-resource-credential hidden" role="status" aria-live="polite"></div>
+            <div id="merchant-x402-resources" class="merchant-x402-resources"><div class="audit-empty">Sign in and verify your wallet to set up product integrations.</div></div>
+          </section>
           <article class="panel x402-panel">
             <div class="panel-heading"><div><div class="eyebrow">AGENT CHECKOUT · x402</div><h2>Unlock an agent integration brief</h2></div><span class="workflow-mark">03</span></div>
             <p class="auth-copy">Give agents a machine-readable Mezo/MUSD integration guide with exact payment terms, Permit2 setup, and settlement-safety checks. Access is unlocked after the facilitator settles an exact MUSD payment.</p>
@@ -213,6 +240,123 @@
             <p class="x402-gas-note">If required, your wallet will request an exact MUSD approval first; that approval transaction uses BTC for gas. The facilitator handles gas for the MUSD settlement.</p>
             <div id="x402-result" class="x402-result hidden" role="status" aria-live="polite"></div>
           </article>
+        </section>
+
+        <section id="faq-view" class="hidden" aria-labelledby="faq-title">
+          <section class="faq-hero">
+            <div class="faq-hero-copy">
+              <div class="eyebrow">RELAYGUARD FIELD GUIDE</div>
+              <h1 id="faq-title">Good questions.<br><span>Clear answers.</span></h1>
+              <p>A practical guide to MUSD checkout, agent payments, and the Mezo controls behind RelayGuard.</p>
+              <label class="faq-search">
+                <span aria-hidden="true">⌕</span>
+                <input id="faq-search" type="search" placeholder="Search payments, x402, troves…" autocomplete="off" aria-label="Search frequently asked questions">
+                <kbd>/</kbd>
+              </label>
+            </div>
+            <div class="faq-flow" aria-label="RelayGuard payment flow: people or agents pay in MUSD on Mezo and the merchant receives funds">
+              <div class="faq-flow-orbit"></div>
+              <div class="faq-flow-node faq-flow-customer"><span>01</span><strong>People</strong><small>QR checkout</small></div>
+              <div class="faq-flow-node faq-flow-agent"><span>02</span><strong>Agents</strong><small>x402 access</small></div>
+              <div class="faq-flow-center"><span class="faq-flow-token">$</span><strong>MUSD</strong><small>ON MEZO</small></div>
+              <div class="faq-flow-line faq-flow-line-one"></div>
+              <div class="faq-flow-line faq-flow-line-two"></div>
+              <div class="faq-flow-node faq-flow-merchant"><span>03</span><strong>Merchant</strong><small>Direct settlement</small></div>
+              <div class="faq-flow-caption"><i></i> ONE RECEIVER · TWO PAYMENT PATHS</div>
+            </div>
+          </section>
+
+          <section class="faq-proof-strip" aria-label="RelayGuard at a glance">
+            <div><span class="faq-proof-icon">₿</span><strong>Mezo Testnet</strong><small>Chain ID 31611</small></div>
+            <div><span class="faq-proof-icon">↗</span><strong>Non-custodial checkout</strong><small>Merchant receives MUSD directly</small></div>
+            <div><span class="faq-proof-icon">◇</span><strong>Policy-aware agents</strong><small>Limits, review, verified receipts</small></div>
+          </section>
+
+          <section class="faq-library" aria-labelledby="faq-library-title">
+            <div class="faq-library-heading">
+              <div><div class="eyebrow">THE SHORT ANSWERS</div><h2 id="faq-library-title">Explore the details</h2></div>
+              <span id="faq-result-count" class="faq-result-count">10 answers</span>
+            </div>
+            <div class="faq-layout">
+              <nav class="faq-categories" aria-label="Filter FAQs by topic">
+                <span>TOPICS</span>
+                <button class="faq-filter active" type="button" data-faq-filter="all"><span>◈</span>All questions</button>
+                <button class="faq-filter" type="button" data-faq-filter="payments"><span>↗</span>Payments</button>
+                <button class="faq-filter" type="button" data-faq-filter="agents"><span>⌘</span>Agents &amp; x402</button>
+                <button class="faq-filter" type="button" data-faq-filter="policy"><span>◇</span>Mezo policy</button>
+                <button class="faq-filter" type="button" data-faq-filter="trust"><span>✓</span>Safety &amp; status</button>
+                <div class="faq-side-note"><span class="live-dot"></span><p><strong>Built for Mezo</strong>Live product on Testnet. No automatic borrowing.</p></div>
+              </nav>
+              <div class="faq-questions" id="faq-questions">
+                <article class="faq-item" data-faq-category="payments">
+                  <details open>
+                    <summary><span class="faq-q-number">01</span><span class="faq-question">What is RelayGuard?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>RelayGuard is a MUSD commerce and payment-control product built for Mezo. Merchants can create shareable invoices for people, while software agents can pay to unlock a protected API resource. A policy console adds spending rules and settlement evidence.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="payments">
+                  <details>
+                    <summary><span class="faq-q-number">02</span><span class="faq-question">How does customer checkout work?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>A merchant creates an exact MUSD invoice with an expiry and shares its link or QR code. The customer connects a Mezo-compatible wallet, reviews the transfer, and signs it. RelayGuard checks the Mezo receipt and matching MUSD transfer before the invoice is marked paid.</p><div class="faq-mini-flow"><span>Invoice</span><b>→</b><span>Wallet signs</span><b>→</b><span>Receipt verified</span></div></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="payments">
+                  <details>
+                    <summary><span class="faq-q-number">03</span><span class="faq-question">Does RelayGuard hold or custody customer funds?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>No. The buyer signs a direct MUSD transfer to the merchant’s configured receiving wallet. RelayGuard records invoice and verification state; checkout funds do not pass through a RelayGuard custody account.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="agents">
+                  <details>
+                    <summary><span class="faq-q-number">04</span><span class="faq-question">What does x402 do in this product?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>x402 lets an agent request a protected HTTP resource and receive exact MUSD payment terms when payment is required. The buyer signs a payment authorization; the Mezo facilitator verifies and settles it. The API releases the resource only after successful settlement.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="agents">
+                  <details>
+                    <summary><span class="faq-q-number">05</span><span class="faq-question">Who pays gas for an agent payment?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>The facilitator handles gas for the MUSD settlement. If the wallet first needs to approve an exact Permit2 allowance, that approval is a separate transaction and uses BTC for gas on Mezo. RelayGuard does not request an unlimited token approval.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="policy">
+                  <details>
+                    <summary><span class="faq-q-number">06</span><span class="faq-question">How does the trove-aware spending policy work?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>Before an operator-authorized MUSD agent payment, RelayGuard reads Mezo trove health and applies an application policy: at or above 150% ICR, configured limits apply; from 110% to below 150%, human approval is required; below Mezo’s 110% minimum, new MUSD authorization is blocked. If protocol data cannot be read, MUSD policy actions fail closed. The 150% buffer is RelayGuard’s choice, not a Mezo parameter.</p><div class="faq-risk-scale" aria-label="Trove policy bands"><span class="risk-safe"><i></i>≥150%<small>LIMITS</small></span><span class="risk-review"><i></i>110–150%<small>HUMAN REVIEW</small></span><span class="risk-stop"><i></i>&lt;110%<small>BLOCKED</small></span></div></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="policy">
+                  <details>
+                    <summary><span class="faq-q-number">07</span><span class="faq-question">Does every buyer need a trove? Does RelayGuard change one?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>No. Trove health is a signal for the configured operator’s agent-spending policy; it is not a checkout requirement for customers. RelayGuard’s integration is read-only: it does not open, top up, repay, or otherwise modify a trove automatically.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="trust">
+                  <details>
+                    <summary><span class="faq-q-number">08</span><span class="faq-question">What evidence is recorded for a policy decision?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>Mezo reads for a decision are pinned to one block. The authorization retains the borrower, block, observation time, price, ICR, collateral, debt, and risk tier. Hash-linked audit events commit policy and evidence digests, so edits to stored evidence can be detected during verification.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="trust">
+                  <details>
+                    <summary><span class="faq-q-number">09</span><span class="faq-question">What happens if the trove changes after approval?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>RelayGuard rechecks the policy before approval and execution. If the risk tier changed, a stale approval or execution is rejected; the operator can cancel the pending authorization and submit a fresh request. An authorized human can still reject a stale request.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="trust">
+                  <details>
+                    <summary><span class="faq-q-number">10</span><span class="faq-question">Is RelayGuard production-ready for mainnet?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>RelayGuard is currently a Mezo Testnet demo (chain ID 31611), not a mainnet payment service. Testnet invoice and x402 settlements have been verified. Controlled live testing of policy thresholds, a fresh production QR checkout, and operational hardening remain outstanding. Do not send mainnet funds to this demo.</p></div>
+                  </details>
+                </article>
+                <div class="faq-no-results hidden" id="faq-no-results"><span>⌕</span><strong>No matching answers</strong><p>Try a different search or choose another topic.</p><button class="button button-quiet" id="faq-clear-search" type="button">Clear filters</button></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="faq-contact">
+            <div><div class="eyebrow">STILL CURIOUS?</div><h2>Explore RelayGuard in the product.</h2><p>See the live testnet controls, create an invoice, or inspect the agent checkout flow.</p></div>
+            <a class="button button-primary" href="/" data-view="console">Explore payments <span>→</span></a>
+          </section>
         </section>
 
         <section id="checkout-view" class="checkout-view hidden">

@@ -10,7 +10,13 @@ import type {
 import { digest, evaluatePolicy, validatePolicy } from "./policy.js";
 import type { AuditEvent, RequestResult } from "./authorization.js";
 import type { CheckoutInvoice, CheckoutStatus } from "./checkout.js";
-import type { AuthorizationStore, CheckoutStore } from "./stores.js";
+import type {
+  AuthorizationStore,
+  CheckoutStore,
+  MerchantProfile,
+  MerchantWalletChallenge,
+  MerchantX402Resource
+} from "./stores.js";
 
 const APPROVAL_TTL_MS = 10 * 60 * 1000;
 const TERMINAL_UNSPENT_STATES = ["denied", "failed", "cancelled", "expired"] as const;
@@ -505,6 +511,208 @@ export class PostgresCheckoutService implements CheckoutStore {
     await this.pool.query("SELECT 1 FROM public.merchant_invoices LIMIT 1");
   }
 
+  async getMerchantProfile(merchantUserId: string): Promise<MerchantProfile | undefined> {
+    const result = await this.pool.query(
+      "SELECT user_id, merchant_name, merchant_address, wallet_verified FROM public.merchant_profiles WHERE user_id = $1",
+      [merchantUserId]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return Object.freeze({
+      userId: String(row.user_id),
+      merchantName: String(row.merchant_name),
+      ...(typeof row.merchant_address === "string" ? { merchantAddress: row.merchant_address } : {}),
+      walletVerified: row.wallet_verified === true
+    });
+  }
+
+  async updateMerchantName(merchantUserId: string, merchantName: string): Promise<boolean> {
+    if (!merchantName.trim() || merchantName.trim().length > 120) {
+      throw new Error("Merchant name must be between 1 and 120 characters.");
+    }
+    const result = await this.pool.query(
+      `UPDATE public.merchant_profiles SET merchant_name = $2, updated_at = now()
+       WHERE user_id = $1 AND wallet_verified = true`,
+      [merchantUserId, merchantName.trim()]
+    );
+    return result.rowCount === 1;
+  }
+
+  async createWalletChallenge(input: {
+    readonly id: string;
+    readonly merchantUserId: string;
+    readonly address: string;
+    readonly message: string;
+    readonly expiresAt: number;
+  }): Promise<void> {
+    await this.pool.query("DELETE FROM public.merchant_wallet_challenges WHERE expires_at <= $1", [Date.now()]);
+    await this.pool.query(
+      `INSERT INTO public.merchant_wallet_challenges
+         (id, merchant_user_id, address, message, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [input.id, input.merchantUserId, input.address, input.message, input.expiresAt]
+    );
+  }
+
+  async consumeWalletChallenge(
+    merchantUserId: string,
+    challengeId: string,
+    now = Date.now()
+  ): Promise<MerchantWalletChallenge | undefined> {
+    const result = await this.pool.query(
+      `DELETE FROM public.merchant_wallet_challenges
+       WHERE id = $1 AND merchant_user_id = $2 AND expires_at > $3
+       RETURNING id, merchant_user_id, address, message, expires_at`,
+      [challengeId, merchantUserId, now]
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return Object.freeze({
+      id: String(row.id),
+      merchantUserId: String(row.merchant_user_id),
+      address: String(row.address),
+      message: String(row.message),
+      expiresAt: Number(row.expires_at)
+    });
+  }
+
+  async saveVerifiedWallet(merchantUserId: string, merchantName: string, address: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO public.merchant_profiles
+         (user_id, merchant_name, merchant_address, wallet_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, true, now(), now())
+       ON CONFLICT (user_id) DO UPDATE SET
+         merchant_address = EXCLUDED.merchant_address, wallet_verified = true, updated_at = now()`,
+      [merchantUserId, merchantName.trim(), address]
+    );
+  }
+
+  async createX402Resource(input: {
+    readonly merchantUserId: string;
+    readonly name: string;
+    readonly method: "GET" | "POST";
+    readonly routePath: string;
+    readonly price: string;
+    readonly description: string;
+    readonly keyHash: string;
+    readonly keyPrefix: string;
+    readonly now?: number;
+  }): Promise<MerchantX402Resource> {
+    const profile = await this.getMerchantProfile(input.merchantUserId);
+    if (!profile?.walletVerified || !profile.merchantAddress) {
+      throw new Error("Verify a merchant receiving wallet before configuring x402 resources.");
+    }
+    if (
+      !input.name.trim() || !input.description.trim() ||
+      !/^\/[A-Za-z0-9/_-]*$/.test(input.routePath) || input.routePath.includes("//") ||
+      !/^\$\d+(?:\.\d{1,18})?$/.test(input.price) ||
+      !/^[0-9a-f]{64}$/.test(input.keyHash) || !input.keyPrefix.trim()
+    ) {
+      throw new Error("Invalid x402 resource details.");
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const id = randomUUID();
+      const now = input.now ?? Date.now();
+      const result = await client.query(
+        `INSERT INTO public.merchant_x402_resources
+           (id, merchant_user_id, name, method, route_path, price, description, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [id, input.merchantUserId, input.name.trim().slice(0, 80), input.method, input.routePath,
+          input.price, input.description.trim().slice(0, 240), now]
+      );
+      await client.query(
+        `INSERT INTO public.merchant_x402_api_keys
+           (id, resource_id, key_hash, key_prefix, created_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), id, input.keyHash, input.keyPrefix, now]
+      );
+      await client.query("COMMIT");
+      return this.decodeX402Resource(result.rows[0], profile.merchantAddress);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listX402Resources(merchantUserId: string): Promise<readonly MerchantX402Resource[]> {
+    const result = await this.pool.query(
+      `SELECT resource.*, api.key_prefix, api.created_at AS key_created_at,
+              api.last_used_at AS key_last_used_at, api.revoked_at AS key_revoked_at,
+              profile.merchant_address AS pay_to
+       FROM public.merchant_x402_resources resource
+       JOIN public.merchant_profiles profile ON profile.user_id = resource.merchant_user_id
+       LEFT JOIN public.merchant_x402_api_keys api ON api.resource_id = resource.id
+       WHERE resource.merchant_user_id = $1 ORDER BY resource.created_at DESC`,
+      [merchantUserId]
+    );
+    return result.rows.map((row) => this.decodeX402Resource(row, String(row.pay_to)));
+  }
+
+  async rotateX402ApiKey(
+    merchantUserId: string,
+    resourceId: string,
+    keyHash: string,
+    keyPrefix: string,
+    now = Date.now()
+  ): Promise<boolean> {
+    if (!/^[0-9a-f]{64}$/.test(keyHash)) throw new Error("Invalid API key hash.");
+    const result = await this.pool.query(
+      `INSERT INTO public.merchant_x402_api_keys
+         (id, resource_id, key_hash, key_prefix, created_at)
+       SELECT $1, resource.id, $2, $3, $4
+       FROM public.merchant_x402_resources resource
+       WHERE resource.id = $5 AND resource.merchant_user_id = $6
+       ON CONFLICT (resource_id) DO UPDATE SET
+         id = EXCLUDED.id, key_hash = EXCLUDED.key_hash, key_prefix = EXCLUDED.key_prefix,
+         created_at = EXCLUDED.created_at, last_used_at = NULL, revoked_at = NULL`,
+      [randomUUID(), keyHash, keyPrefix, now, resourceId, merchantUserId]
+    );
+    return result.rowCount === 1;
+  }
+
+  async getX402ResourceByApiKey(keyHash: string, now = Date.now()): Promise<MerchantX402Resource | undefined> {
+    const result = await this.pool.query(
+      `WITH used_key AS (
+         UPDATE public.merchant_x402_api_keys api SET last_used_at = $2
+         FROM public.merchant_x402_resources resource
+         JOIN public.merchant_profiles profile ON profile.user_id = resource.merchant_user_id
+         WHERE api.resource_id = resource.id AND api.key_hash = $1 AND api.revoked_at IS NULL
+           AND profile.wallet_verified = true
+         RETURNING api.resource_id
+       )
+       SELECT resource.*, profile.merchant_address AS pay_to
+       FROM used_key
+       JOIN public.merchant_x402_resources resource ON resource.id = used_key.resource_id
+       JOIN public.merchant_profiles profile ON profile.user_id = resource.merchant_user_id`,
+      [keyHash, now]
+    );
+    const row = result.rows[0];
+    return row ? this.decodeX402Resource(row, String(row.pay_to)) : undefined;
+  }
+
+  async revokeX402ApiKey(merchantUserId: string, resourceId: string, now = Date.now()): Promise<void> {
+    await this.pool.query(
+      `UPDATE public.merchant_x402_api_keys api SET revoked_at = $3
+       FROM public.merchant_x402_resources resource
+       WHERE api.resource_id = resource.id AND resource.id = $1
+         AND resource.merchant_user_id = $2 AND api.revoked_at IS NULL`,
+      [resourceId, merchantUserId, now]
+    );
+  }
+
+  async deleteX402Resource(merchantUserId: string, resourceId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      "DELETE FROM public.merchant_x402_resources WHERE id = $1 AND merchant_user_id = $2",
+      [resourceId, merchantUserId]
+    );
+    return result.rowCount === 1;
+  }
+
   async create(input: {
     readonly merchantUserId: string;
     readonly merchantName: string;
@@ -601,5 +809,23 @@ export class PostgresCheckoutService implements CheckoutStore {
 
   close(): Promise<void> {
     return this.pool.end();
+  }
+
+  private decodeX402Resource(row: QueryResultRow, payTo?: string): MerchantX402Resource {
+    return Object.freeze({
+      id: String(row.id),
+      merchantUserId: String(row.merchant_user_id),
+      name: String(row.name),
+      method: String(row.method) as "GET" | "POST",
+      routePath: String(row.route_path),
+      price: String(row.price),
+      description: String(row.description),
+      createdAt: Number(row.created_at),
+      ...(typeof row.key_prefix === "string" ? { keyPrefix: row.key_prefix } : {}),
+      ...(row.key_created_at !== null && row.key_created_at !== undefined ? { keyCreatedAt: Number(row.key_created_at) } : {}),
+      ...(row.key_last_used_at !== null && row.key_last_used_at !== undefined ? { keyLastUsedAt: Number(row.key_last_used_at) } : {}),
+      ...(row.key_revoked_at !== null && row.key_revoked_at !== undefined ? { keyRevokedAt: Number(row.key_revoked_at) } : {}),
+      ...(payTo ? { payTo } : {})
+    });
   }
 }

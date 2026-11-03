@@ -221,7 +221,7 @@
             <p class="auth-copy">Register a route from your own API. RelayGuard gives you a scoped API key and a small Express adapter that loads your exact MUSD price and verified receiving wallet. Your server keeps the resource and returns it only after facilitator-confirmed settlement.</p>
             <form id="merchant-x402-form" class="merchant-x402-form">
               <label class="field">Resource name<input id="x402-resource-name" maxlength="80" value="Premium API response" required></label>
-              <label class="field">Your API route<input id="x402-resource-path" maxlength="160" value="/api/premium" pattern="/[A-Za-z0-9/_-]*" required><small class="field-help">Exact path on your own product; no query strings.</small></label>
+              <label class="field">Your API route<input id="x402-resource-path" maxlength="160" value="/api/premium" pattern="(?!.*\/\/)\/[A-Za-z0-9_\/\-]*" required><small class="field-help">Exact path on your own product; no query strings.</small></label>
               <label class="field">Method<select id="x402-resource-method"><option>GET</option><option>POST</option></select></label>
               <label class="field">Price
                 <div class="input-with-unit"><input id="x402-resource-price" inputmode="decimal" value="0.01" required><span>MUSD</span></div>

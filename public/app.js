@@ -1675,6 +1675,46 @@ function setBorrowStatus(message, kind = "") {
   status.textContent = message;
 }
 
+function borrowErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  const hash = message.match(/\b0x[a-f0-9]{64}\b/i)?.[0];
+  if (error?.code === 4001) {
+    return "Wallet confirmation was rejected. No trove was opened and no invoice payment was submitted.";
+  }
+  if (/was submitted, but confirmation is still pending/i.test(message)) {
+    return `Borrow transaction ${hash ?? "was submitted"} but confirmation could not be verified. Check its status in the Mezo Testnet explorer before retrying; do not pay the invoice yet.`;
+  }
+  if (/borrow transaction .* reverted/i.test(message)) {
+    return `Borrow transaction ${hash ?? "reverted"} on Mezo Testnet. No invoice payment was submitted.`;
+  }
+  if (/trove opening confirmed/i.test(message)) {
+    return `Trove opening is confirmed${hash ? ` (${hash})` : ""}, but the MUSD balance could not be refreshed. Check your wallet before continuing to payment.`;
+  }
+  if (normalized.includes("insufficient balance for transfer") || normalized.includes("insufficient funds")) {
+    return "This wallet does not have enough Mezo Testnet BTC for the selected collateral and gas. Add testnet BTC and retry; no transaction was submitted.";
+  }
+  if (
+    normalized.includes("unexpected mocked rpc method") ||
+    normalized.includes("eth_estimategas") ||
+    normalized.includes("estimate gas arguments")
+  ) {
+    return "The connected wallet or RPC could not estimate this borrow. Check that it supports Mezo Testnet gas estimation and retry; no transaction was submitted.";
+  }
+  if (normalized.includes("200% opening buffer") || normalized.includes("no more than 18 decimal places")) {
+    return `${message} No transaction was submitted.`;
+  }
+  if (
+    message.length <= 220 &&
+    !/request body|estimate gas arguments|version: viem|unknown rpc error/i.test(normalized)
+  ) {
+    return /no transaction was submitted|no trove was opened|no invoice payment was submitted/i.test(normalized)
+      ? message
+      : `${message} No transaction was submitted.`;
+  }
+  return "Could not verify a safe Mezo Testnet borrow quote. Check the network and wallet balance, then retry. No transaction was submitted.";
+}
+
 function renderBorrowQuote(quote) {
   const summary = byId("checkout-borrow-review-result");
   summary.replaceChildren();
@@ -1750,7 +1790,8 @@ async function prepareBorrowOption(provider, account, preflight) {
       `This deployment requires at least ${formatAtomic(terms.principalAtomic)} MUSD borrowed. The live fee, fixed interest rate, collateral ratio, and gas estimate will be shown before wallet confirmation.`
     );
   } catch (error) {
-    setBorrowStatus(`Could not verify a safe testnet borrow quote: ${error.message} No transaction was submitted.`, "error");
+    console.error("Mezo Testnet borrow terms could not be verified:", error);
+    setBorrowStatus(borrowErrorMessage(error), "error");
   }
 }
 
@@ -1777,7 +1818,8 @@ async function reviewTroveOpen() {
     setBorrowStatus("Review every amount and risk note below. The wallet transaction is a separate confirmation; invoice payment is never automatic.");
   } catch (error) {
     checkoutBorrowQuote = undefined;
-    setBorrowStatus(`${error.message} No transaction was submitted.`, "error");
+    console.error("Mezo Testnet borrow quote could not be estimated:", error);
+    setBorrowStatus(borrowErrorMessage(error), "error");
   } finally {
     button.disabled = false;
     button.removeAttribute("aria-busy");
@@ -1827,7 +1869,8 @@ async function confirmTroveOpen() {
     byId("checkout-borrow-ack-wrap").classList.add("hidden");
     button.classList.add("hidden");
   } catch (error) {
-    setBorrowStatus(`${error.message} Do not retry if the wallet already submitted a transaction; check its status first.`, "error");
+    console.error("Mezo Testnet trove opening needs follow-up:", error);
+    setBorrowStatus(borrowErrorMessage(error), "error");
     button.disabled = false;
     byId("checkout-borrow-review").disabled = false;
     button.textContent = "Confirm & open trove in wallet";

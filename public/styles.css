@@ -867,6 +867,7 @@ details[open] .faq-toggle::after { transform: rotate(0); }
 
 @media (max-width: 1060px) {
   .main { padding: 0 25px 24px; }
+  .stats, .stats:has(#musd-card:not(.hidden)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content-grid, .lower-grid { grid-template-columns: minmax(0, 1fr); }
   .merchant-grid { grid-template-columns: minmax(0, 1fr); }
   .merchant-hero-visual { margin-left: -20px; }

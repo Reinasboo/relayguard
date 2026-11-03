@@ -374,6 +374,12 @@
                     <div class="faq-answer"><p>Anyone can inspect the operator signer’s public Mezo Testnet balance and trove status. Creating payment requests, viewing protected spending limits and recipient settings, and approving or executing payments require an authenticated account. The separate merchant checkout flow remains available to buyers without a RelayGuard sign-in.</p></div>
                   </details>
                 </article>
+                <article class="faq-item" data-faq-category="payments">
+                  <details>
+                    <summary><span class="faq-q-number">14</span><span class="faq-question">Can I choose which wallet connects?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>Yes. When multiple browser wallets are detected, choose the one to use for that action. RelayGuard uses that wallet for the Mezo Testnet connection and never accesses your private key; you review and approve wallet prompts yourself.</p></div>
+                  </details>
+                </article>
                 <div class="faq-no-results hidden" id="faq-no-results"><span>⌕</span><strong>No matching answers</strong><p>Try a different search or choose another topic.</p><button class="button button-quiet" id="faq-clear-search" type="button">Clear filters</button></div>
               </div>
             </div>
@@ -428,5 +434,12 @@
       </main>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="wallet-picker" class="wallet-picker" aria-labelledby="wallet-picker-title">
+      <form method="dialog"><button class="wallet-picker-close" aria-label="Cancel wallet selection">×</button></form>
+      <div class="eyebrow">WALLET CONNECTION</div>
+      <h2 id="wallet-picker-title">Choose a wallet</h2>
+      <p>Choose which detected wallet RelayGuard should use. Only this connection will be used for the current action.</p>
+      <div id="wallet-picker-options" class="wallet-picker-options"></div>
+    </dialog>
   </body>
 </html>

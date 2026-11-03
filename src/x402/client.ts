@@ -9,12 +9,6 @@ type Eip1193Provider = {
   request(args: { method: string; params?: readonly unknown[] }): Promise<unknown>;
 };
 
-declare global {
-  interface Window {
-    ethereum?: Eip1193Provider;
-  }
-}
-
 const network = "eip155:31611";
 const musdAddress = getAddress("0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503");
 const permit2Address = getAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3");
@@ -154,16 +148,12 @@ export async function ensurePermit2Allowance(
 
 export async function payForRelayguardResource(
   endpoint: string,
+  provider: Eip1193Provider,
   onProgress: (message: string) => void = () => undefined
 ): Promise<{
   readonly body: unknown;
   readonly settlement: string;
 }> {
-  const provider = window.ethereum;
-  if (!provider) {
-    throw new Error("Open RelayGuard in a browser with an EVM wallet to pay the protected resource.");
-  }
-
   await ensureMezoTestnet(provider);
   const accounts = await provider.request({ method: "eth_requestAccounts" });
   if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {

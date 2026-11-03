@@ -1,4 +1,5 @@
 import { payForRelayguardResource } from "./x402-client.js";
+import { discoverWalletProviders, selectSingleWallet } from "./wallet-provider.js";
 import {
   getMezoTroveOpeningTerms,
   inspectMezoCheckoutWallet,
@@ -17,6 +18,7 @@ let currentHash;
 let checkoutInvoice;
 let checkoutAuthorization;
 let checkoutWallet;
+let checkoutProvider;
 let checkoutBorrowQuote;
 let checkoutVerificationInProgress = false;
 let appConfig;
@@ -26,6 +28,38 @@ let healthLoadSequence = 0;
 let auditLoadSequence = 0;
 let merchantLoadSequence = 0;
 let merchantInvoices = [];
+
+async function requestWalletProvider() {
+  const wallets = await discoverWalletProviders();
+  if (!wallets.length) {
+    throw new Error("No EVM wallet was detected. Install or enable MetaMask, then reload this page.");
+  }
+  const singleWallet = selectSingleWallet(wallets);
+  if (singleWallet) return singleWallet;
+
+  const dialog = byId("wallet-picker");
+  const options = byId("wallet-picker-options");
+  options.replaceChildren();
+  let selectedWallet;
+  for (const wallet of wallets) {
+    const button = document.createElement("button");
+    button.className = "button button-quiet wallet-picker-option";
+    button.type = "button";
+    button.textContent = wallet.name;
+    button.addEventListener("click", () => {
+      selectedWallet = wallet;
+      dialog.close();
+    });
+    options.append(button);
+  }
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => resolve(selectedWallet), { once: true });
+    dialog.showModal();
+  }).then((wallet) => {
+    if (!wallet) throw new Error("Wallet connection was cancelled.");
+    return wallet;
+  });
+}
 
 try {
   authSession = JSON.parse(localStorage.getItem("relayguard.authSession") || "null");
@@ -1126,16 +1160,14 @@ function renderMerchantX402Resources(resources) {
 }
 
 async function verifyMerchantWallet() {
-  const provider = window.ethereum;
-  if (!provider) {
-    toast("Open this page in a Mezo-compatible wallet browser to connect your receiving wallet.", "error");
-    return;
-  }
   const button = byId("merchant-wallet-connect");
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
   button.textContent = "Connecting wallet…";
   try {
+    const wallet = await requestWalletProvider();
+    const provider = wallet.provider;
+    button.textContent = `Connecting ${wallet.name}…`;
     await ensureMezoWallet(provider);
     const accounts = await provider.request({ method: "eth_requestAccounts" });
     const address = Array.isArray(accounts) ? accounts[0] : undefined;
@@ -1796,7 +1828,7 @@ async function prepareBorrowOption(provider, account, preflight) {
 }
 
 async function reviewTroveOpen() {
-  const provider = window.ethereum;
+  const provider = checkoutProvider;
   if (!provider || !checkoutWallet) {
     setBorrowStatus("Reconnect your EVM wallet and retry the quote.", "error");
     return;
@@ -1828,7 +1860,7 @@ async function reviewTroveOpen() {
 }
 
 async function confirmTroveOpen() {
-  const provider = window.ethereum;
+  const provider = checkoutProvider;
   const quote = checkoutBorrowQuote;
   if (!provider || !checkoutWallet || !quote || !byId("checkout-borrow-ack").checked) return;
   const button = byId("checkout-borrow-confirm");
@@ -1953,12 +1985,6 @@ async function pollCheckoutInvoice() {
 }
 
 async function payCheckout() {
-  const provider = window.ethereum;
-  if (!provider) {
-    setCheckoutMessage("Install or open an EVM wallet such as MetaMask, then reopen this checkout.", "notice");
-    byId("checkout-result").classList.remove("hidden");
-    return;
-  }
   const button = byId("connect-pay-button");
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
@@ -1966,6 +1992,10 @@ async function payCheckout() {
   checkoutAuthorization = undefined;
   let broadcastHash;
   try {
+    const wallet = await requestWalletProvider();
+    const provider = wallet.provider;
+    checkoutProvider = provider;
+    button.textContent = `Connecting ${wallet.name}…`;
     await ensureMezoWallet(provider);
     const accounts = await provider.request({ method: "eth_requestAccounts" });
     checkoutWallet = accounts[0];
@@ -2179,8 +2209,10 @@ byId("pay-x402-resource").addEventListener("click", async (event) => {
   button.disabled = true;
   byId("x402-result").classList.add("hidden");
   try {
+    const wallet = await requestWalletProvider();
     const { body, settlement } = await payForRelayguardResource(
       "/api/paid-resource",
+      wallet.provider,
       showX402Progress
     );
     renderX402Result(body, settlement);

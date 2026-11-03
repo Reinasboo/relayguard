@@ -41948,11 +41948,7 @@ async function ensurePermit2Allowance(provider, address, requirements, onProgres
     throw new Error("The confirmed approval did not grant the exact MUSD allowance required for this payment.");
   }
 }
-async function payForRelayguardResource(endpoint, onProgress = () => void 0) {
-  const provider = window.ethereum;
-  if (!provider) {
-    throw new Error("Open RelayGuard in a browser with an EVM wallet to pay the protected resource.");
-  }
+async function payForRelayguardResource(endpoint, provider, onProgress = () => void 0) {
   await ensureMezoTestnet(provider);
   const accounts = await provider.request({ method: "eth_requestAccounts" });
   if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {

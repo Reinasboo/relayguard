@@ -61,9 +61,22 @@
           </article>
           <article class="stat-card">
             <div class="stat-heading"><span>AUTHORIZATION LOG</span><span class="tiny-icon">⌁</span></div>
-            <div class="stat-value compact" id="audit-state">Verifying…</div>
+            <div class="stat-value compact" id="audit-state">Sign-in required</div>
             <div class="stat-sub">Hash-linked audit events</div>
           </article>
+        </section>
+
+        <section class="panel trove-monitor" aria-label="MUSD trove-aware spending policy">
+          <div class="panel-heading">
+            <div><div class="eyebrow">MEZO PROTOCOL CONTEXT</div><h2>Trove-aware MUSD policy</h2></div>
+            <span id="trove-status" class="status-pill muted">Reading Mezo state…</span>
+          </div>
+          <div class="trove-metrics">
+            <div><span>COLLATERAL RATIO</span><strong id="trove-icr">—</strong></div>
+            <div><span>BTC COLLATERAL</span><strong id="trove-collateral">—</strong></div>
+            <div><span>MUSD DEBT</span><strong id="trove-debt">—</strong></div>
+          </div>
+          <p id="trove-policy" class="trove-policy">Checking the operator’s live MUSD trove before applying spending policy.</p>
         </section>
 
         <section class="content-grid">

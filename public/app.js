@@ -1,6 +1,7 @@
 import { payForRelayguardResource } from "./x402-client.js";
 
 const byId = (id) => document.getElementById(id);
+const API_TIMEOUT_MS = 15_000;
 
 let walletState;
 let currentRecord;
@@ -36,6 +37,21 @@ function persistAuthSession(session) {
     token_type: session.token_type
   };
   localStorage.setItem("relayguard.authSession", JSON.stringify(authSession));
+}
+
+async function fetchWithTimeout(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    return await fetch(path, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("The request timed out. Check your connection and retry.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function restoreAuthRedirect() {
@@ -199,7 +215,7 @@ async function api(path, options = {}) {
     ...(authSession?.access_token ? { authorization: `Bearer ${authSession.access_token}` } : {}),
     ...options.headers
   });
-  let response = await fetch(path, {
+  let response = await fetchWithTimeout(path, {
     ...options,
     headers: requestHeaders()
   });
@@ -209,7 +225,7 @@ async function api(path, options = {}) {
     appConfig?.supabase &&
     path !== "/api/config"
   ) {
-    const refreshed = await fetch(`${appConfig.supabase.url}/auth/v1/token?grant_type=refresh_token`, {
+    const refreshed = await fetchWithTimeout(`${appConfig.supabase.url}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -219,7 +235,7 @@ async function api(path, options = {}) {
     });
     if (refreshed.ok) {
       persistAuthSession(await refreshed.json());
-      response = await fetch(path, { ...options, headers: requestHeaders() });
+      response = await fetchWithTimeout(path, { ...options, headers: requestHeaders() });
     } else {
       authSession = undefined;
       localStorage.removeItem("relayguard.authSession");
@@ -369,6 +385,7 @@ function renderTransaction(record, details = {}) {
     note.className = "action-caption";
     note.textContent = "This signs and broadcasts a real testnet transaction and spends BTC on network fees.";
     actions.append(note);
+    actions.append(actionButton("Cancel authorization", "button button-quiet", cancelPayment));
   } else if (record.status === "submitted") {
     setStep("step-intent", "complete", "RECEIVED");
     setStep("step-policy", "complete", "AUTHORIZED");
@@ -431,6 +448,7 @@ async function loadHealth() {
       byId("musd-contract").title = body.musd.address;
       byId("musd-card").classList.remove("hidden");
     }
+    renderTroveHealth(body.trove);
 
     const recipientSelect = byId("recipient");
     recipientSelect.innerHTML = "";
@@ -452,6 +470,49 @@ async function loadHealth() {
       const notice = byId("setup-notice");
       notice.classList.remove("hidden");
       notice.textContent = "Payments are paused until an approved recipient is configured.";
+    }
+
+    function renderTroveHealth(trove) {
+      const status = byId("trove-status");
+      const ratio = byId("trove-icr");
+      const collateral = byId("trove-collateral");
+      const debt = byId("trove-debt");
+      const policy = byId("trove-policy");
+      if (!trove || trove.status === "unavailable") {
+        status.textContent = "Trove state unavailable";
+        status.className = "status-pill danger";
+        ratio.textContent = "—";
+        collateral.textContent = "—";
+        debt.textContent = "—";
+        policy.textContent = "MUSD authorization is paused until protocol state can be verified.";
+        return;
+      }
+      if (trove.status === "inactive") {
+        status.textContent = "No active trove";
+        status.className = "status-pill muted";
+        ratio.textContent = "—";
+        collateral.textContent = "—";
+        debt.textContent = "—";
+        policy.textContent = "Standard MUSD spending limits apply; no active trove was found for this signer.";
+        return;
+      }
+      const icr = Number(formatAtomic(trove.icrAtomic));
+      ratio.textContent = `${(icr * 100).toFixed(1)}%`;
+      collateral.textContent = `${formatAtomic(trove.collateralAtomic)} BTC`;
+      debt.textContent = `${formatAtomic(trove.debtAtomic)} MUSD`;
+      if (trove.risk === "healthy") {
+        status.textContent = "Healthy";
+        status.className = "status-pill success";
+        policy.textContent = "Standard MUSD spending limits apply while the trove remains above the 150% review buffer.";
+      } else if (trove.risk === "review_required") {
+        status.textContent = "Human review required";
+        status.className = "status-pill pending";
+        policy.textContent = "Every MUSD payment requires explicit human approval while the trove is between 110% and 150% ICR.";
+      } else {
+        status.textContent = "MUSD spending paused";
+        status.className = "status-pill danger";
+        policy.textContent = "New MUSD authorizations, approvals, and executions are blocked below the 110% minimum collateral ratio.";
+      }
     }
 
     if (body.musd) {
@@ -484,36 +545,49 @@ function updateUnit() {
 
 async function loadAudit() {
   if (!authSession?.access_token) {
+    byId("audit-state").textContent = "Sign-in required";
+    byId("audit-state").className = "stat-value compact";
     byId("audit-events").textContent = "Sign in to your merchant account to view the authorization audit.";
     return;
   }
-  const { body } = await api("/api/audit");
-  byId("audit-state").textContent = body.verified ? "Integrity verified" : "Integrity error";
-  byId("audit-state").className = `stat-value compact ${body.verified ? "text-good" : "text-bad"}`;
   const list = byId("audit-events");
-  list.innerHTML = "";
-  if (!body.events.length) {
-    list.innerHTML = '<div class="audit-empty">No recorded decisions yet.</div>';
-    return;
-  }
-  for (const event of body.events) {
-    const item = document.createElement("div");
-    item.className = "audit-event";
-    const icon = document.createElement("span");
-    icon.className = "audit-icon";
-    icon.textContent = event.status === "confirmed" ? "✓" : "⌁";
-    const copy = document.createElement("div");
-    copy.className = "audit-copy";
-    const title = document.createElement("strong");
-    title.textContent = event.type.replaceAll("_", " ");
-    const meta = document.createElement("small");
-    meta.textContent = `${new Date(event.at).toLocaleTimeString()} · ${event.status.replaceAll("_", " ")}`;
-    copy.append(title, meta);
-    const sequence = document.createElement("span");
-    sequence.className = "audit-sequence";
-    sequence.textContent = `#${event.sequence}`;
-    item.append(icon, copy, sequence);
-    list.append(item);
+  try {
+    const { body } = await api("/api/audit");
+    byId("audit-state").textContent = body.verified ? "Integrity verified" : "Integrity error";
+    byId("audit-state").className = `stat-value compact ${body.verified ? "text-good" : "text-bad"}`;
+    list.innerHTML = "";
+    if (!body.events.length) {
+      list.innerHTML = '<div class="audit-empty">No recorded decisions yet.</div>';
+      return;
+    }
+    for (const event of body.events) {
+      const item = document.createElement("div");
+      item.className = "audit-event";
+      const icon = document.createElement("span");
+      icon.className = "audit-icon";
+      icon.textContent = event.status === "confirmed" ? "✓" : "⌁";
+      const copy = document.createElement("div");
+      copy.className = "audit-copy";
+      const title = document.createElement("strong");
+      title.textContent = event.type.replaceAll("_", " ");
+      const meta = document.createElement("small");
+      meta.textContent = `${new Date(event.at).toLocaleTimeString()} · ${event.status.replaceAll("_", " ")}`;
+      copy.append(title, meta);
+      const sequence = document.createElement("span");
+      sequence.className = "audit-sequence";
+      sequence.textContent = `#${event.sequence}`;
+      item.append(icon, copy, sequence);
+      list.append(item);
+    }
+  } catch (error) {
+    console.error("Authorization audit could not be loaded:", error);
+    byId("audit-state").textContent = "Unavailable";
+    byId("audit-state").className = "stat-value compact text-bad";
+    list.replaceChildren();
+    const message = document.createElement("div");
+    message.className = "audit-empty";
+    message.textContent = `Audit trail could not be loaded: ${error.message}`;
+    list.append(message, actionButton("Retry", "button button-quiet", () => void loadAudit()));
   }
 }
 
@@ -584,6 +658,27 @@ async function executePayment() {
     const { body } = await api(`/api/payments/${encodeURIComponent(currentRecord.id)}/execute`, { method: "POST" });
     currentHash = body.transactionHash;
     renderTransaction(body.record, body);
+    toast(body.message, "success");
+  } catch (error) {
+    if (error.status === 409 && currentRecord?.status === "authorized") {
+      renderTransaction(currentRecord);
+      const notice = document.createElement("div");
+      notice.className = "inline-error";
+      notice.textContent = error.message;
+      byId("action-area").prepend(notice);
+    } else {
+      showError(error.message);
+    }
+  }
+}
+
+async function cancelPayment() {
+  if (!currentRecord || !["authorized", "awaiting_approval"].includes(currentRecord.status)) return;
+  if (!window.confirm("Cancel this authorization? It will release the reserved daily limit and will not submit a payment.")) return;
+  try {
+    const { body } = await api(`/api/payments/${encodeURIComponent(currentRecord.id)}/cancel`, { method: "POST" });
+    currentChallenge = undefined;
+    renderTransaction(body.record);
     toast(body.message, "success");
   } catch (error) {
     showError(error.message);
@@ -659,7 +754,12 @@ async function loadMerchantWorkspace() {
     renderInvoiceList(invoiceBody.invoices);
   } catch (error) {
     console.error("Merchant workspace could not be loaded:", error);
-    byId("invoice-list").textContent = "Invoices could not be loaded. Please refresh and try again.";
+    const list = byId("invoice-list");
+    list.replaceChildren();
+    const message = document.createElement("div");
+    message.className = "audit-empty";
+    message.textContent = `Invoices could not be loaded: ${error.message}`;
+    list.append(message, actionButton("Retry", "button button-quiet", () => void loadMerchantWorkspace()));
   }
 }
 
@@ -834,6 +934,14 @@ async function createInvoice(event) {
 
 async function loadCheckoutPage() {
   setView("checkout");
+  byId("checkout-content").classList.add("hidden");
+  byId("checkout-loading").classList.remove("hidden");
+  byId("checkout-loading").replaceChildren();
+  const loadingTitle = document.createElement("strong");
+  loadingTitle.textContent = "Loading invoice";
+  const loadingMessage = document.createElement("span");
+  loadingMessage.textContent = "Retrieving payment details from Mezo.";
+  byId("checkout-loading").append(loadingTitle, loadingMessage);
   const invoiceId = decodeURIComponent(window.location.pathname.slice("/pay/".length));
   try {
     const [{ body: invoiceBody }, { body: merchantBody }] = await Promise.all([
@@ -899,10 +1007,13 @@ async function loadCheckoutPage() {
       byId("checkout-wallet-state").textContent = "MUSD contract is not configured for this Mezo testnet.";
     }
   } catch (error) {
-    byId("checkout-loading").innerHTML = "";
+    byId("checkout-loading").replaceChildren();
     const message = document.createElement("strong");
-    message.textContent = error.message;
-    byId("checkout-loading").append(message);
+    message.textContent = "Invoice could not be loaded";
+    const details = document.createElement("span");
+    details.textContent = error.message;
+    const retry = actionButton("Retry loading invoice", "button button-quiet", () => void loadCheckoutPage());
+    byId("checkout-loading").append(message, details, retry);
   }
 }
 
@@ -956,7 +1067,7 @@ async function pollCheckoutInvoice() {
   const transactionHash = checkoutInvoice.transactionReference;
   let attempt = 0;
   try {
-    while (checkoutInvoice.status === "submitted") {
+    while (checkoutInvoice.status === "submitted" && attempt < 20) {
       try {
         const verified = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/verify`, { method: "POST" });
         checkoutInvoice = verified.body.invoice;
@@ -976,9 +1087,7 @@ async function pollCheckoutInvoice() {
           byId("checkout-result").classList.remove("hidden");
           return;
         }
-        byId("checkout-wallet-state").textContent = attempt < 20
-          ? `Payment submitted. Waiting for Mezo confirmation (${attempt + 1}/20)…`
-          : "Payment submitted. Still checking Mezo for confirmation; do not pay again.";
+        byId("checkout-wallet-state").textContent = `Payment submitted. Waiting for Mezo confirmation (${attempt + 1}/20)…`;
       } catch (error) {
         if (error.status && error.status < 500 && error.status !== 429) {
           byId("checkout-wallet-state").textContent = `Could not verify this invoice (HTTP ${error.status}): ${error.message}`;
@@ -988,8 +1097,16 @@ async function pollCheckoutInvoice() {
         }
         byId("checkout-wallet-state").textContent = `Verification temporarily unavailable; retrying automatically. Do not pay again. ${error.message}`;
       }
-      await new Promise((resolve) => window.setTimeout(resolve, attempt < 20 ? 750 : 2500));
       attempt += 1;
+      if (checkoutInvoice.status === "submitted" && attempt < 20) {
+        await new Promise((resolve) => window.setTimeout(resolve, attempt < 5 ? 750 : 2500));
+      }
+    }
+    if (checkoutInvoice.status === "submitted" && attempt >= 20) {
+      byId("checkout-wallet-state").textContent = "Payment is still submitted. Automatic checks have stopped; check status again shortly. Do not pay again.";
+      byId("checkout-wallet-state").className = "notice";
+      setCheckoutMessage("No final Mezo receipt was available after 20 checks. The transaction may still settle; use “Check payment status” to retry and do not send another payment.", "notice");
+      byId("checkout-result").classList.remove("hidden");
     }
   } finally {
     checkoutVerificationInProgress = false;
@@ -1157,8 +1274,8 @@ if (window.location.pathname.startsWith("/pay/")) {
   loadAppConfig();
   setView(window.location.hash === "#merchant" ? "merchant" : "console");
   loadHealth();
+  loadAudit();
   if (authSession?.access_token) {
-    loadAudit().catch((error) => console.error("Audit initialization failed:", error));
     restoreCurrentPayment();
   }
   if (window.location.hash === "#merchant") loadMerchantWorkspace();

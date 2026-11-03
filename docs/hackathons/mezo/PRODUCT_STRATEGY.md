@@ -38,14 +38,40 @@ The connected x402 resource uses the Mezo facilitator's `exact` scheme at `eip15
 - The test buyer/operator wallet borrowed 1,800 MUSD and completed both a 1.00 MUSD merchant invoice payment and a 0.001 MUSD x402 resource payment. Both transactions settled to the same merchant receiver and were verified.
 - The merchant receiver now holds 1.001 MUSD from those test transactions. These are testnet amounts and transactions, not evidence of mainnet readiness.
 - The borrower has an active testnet trove with 0.045 BTC collateral and approximately 2,001.8 MUSD opening debt, including the MUSD gas compensation and issuance fee. This testnet collateral remains subject to the same protocol liquidation rules; do not use a mainnet wallet for a demo.
-- The current app binds to `127.0.0.1`. Its QR/link is only reachable on the same machine; public/mobile checkout requires a secure deployment.
-- Supabase Auth is wired for merchant sessions and operator APIs; SQLite invoice listing is scoped by Supabase user ID. The remote Supabase SQL migration is prepared but not applied, and invoice/audit persistence remains local SQLite.
-- Merchant profile/address is currently configured for this single demo merchant; multi-merchant profiles and hosted Postgres persistence are not implemented.
+- The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app), with Vercel Functions and Supabase Postgres persistence. Health/config and x402 challenge responses are live; a previous QR route issue was fixed, but the full authenticated invoice-to-wallet-payment flow still needs a fresh production verification.
+- Local development defaults to `127.0.0.1` and SQLite. Production runtime requires `DATABASE_URL`; both Supabase migrations are applied and the live database readiness check passed.
+- Merchant receiving details are configured for the demo merchant. Multi-merchant onboarding and production operational hardening remain future work.
 - The previously completed BTC transaction proves the Mezo execution/receipt path only; it is not MUSD checkout evidence.
+
+## Wave 2: protocol-aware spending policy
+
+The MUSD agent-payment policy now reads the operator's Mezo Testnet trove status, current BTC/USD price, and current individual collateral ratio from the MUSD protocol before authorizing, approving, or executing an MUSD payment. The ICR is calculated by the protocol's `TroveManager.getCurrentICR` view, not reconstructed from a UI estimate.
+
+- At or above 150% ICR, the configured MUSD transaction and daily limits apply.
+- From 110% up to (but not including) 150% ICR, every positive MUSD payment requires an explicit human approval.
+- Below Mezo's 110% minimum collateral ratio, MUSD authorization, approval, and execution are blocked.
+- If the live protocol read fails, MUSD authorization and execution fail closed. BTC payments remain governed by their existing policy.
+- The dashboard displays the observed trove status, ICR, collateral, and debt. A signer with no active trove can still use the standard MUSD limits; this feature does not force users to open a loan or add collateral.
+- These controls are for RelayGuard's configured operator signer. They do not monitor each checkout payer's personal trove or alter the wallet-to-wallet invoice and x402 settlement flows.
+- The trove-aware policy and bounded checkout retry/loading states are implemented in the current working tree and pass local tests; they are not yet part of the production deployment.
+
+The reserve and review thresholds are RelayGuard policy choices, not Mezo protocol parameters. The 110% minimum is the protocol's stated minimum collateral ratio. Testnet contract reads may be unavailable; in that case, the dashboard reports the state as unavailable and MUSD policy actions remain paused.
+
+## Proposed revenue model and milestones
+
+The proposed model is a free pilot followed by a $19/month merchant workspace subscription and a 0.5% fee on successfully settled MUSD invoices. These are unvalidated pricing hypotheses; billing and platform-fee collection are not implemented. Checkout currently settles directly to the configured merchant receiver.
+
+Proposed milestones:
+
+1. **November 10, 2026:** deploy the trove-aware MUSD controls and verify healthy, review, below-minimum, and unavailable-RPC decisions on the live service.
+2. **November 17, 2026:** complete a second-device merchant QR checkout from invoice creation through a verified Mezo receipt.
+3. **December 1, 2026:** interview three pilot merchants and report invoice completion, agent resource access, settlement time, and support outcomes.
+
+These dates and pilot targets are proposals, not confirmed commitments.
 
 ## Next buildathon-ready steps
 
-1. Manually verify buyer wallet signing and QR checkout from a second device/browser.
-2. Apply the Supabase migration and move invoice, authorization, and audit persistence to hosted Postgres.
-3. Configure the production host, HTTPS, redirects, operations, and signing boundaries before sharing a public URL.
-4. Capture the merchant-created QR, buyer payment, agent resource access, settlement proofs, and audit evidence in a short demo.
+1. Deploy and verify the current trove-aware policy and checkout recovery changes on the public app.
+2. Complete a fresh buyer wallet signing and QR checkout from a second device/browser.
+3. Finish production operational hardening, including rate limits, monitoring, backups, and operator-key custody.
+4. Capture the merchant-created QR, buyer payment, agent resource access, settlement proofs, trove-aware policy decisions, and audit evidence in a short demo.

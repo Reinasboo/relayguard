@@ -331,10 +331,9 @@ export class AuthorizationService implements AuthorizationStore {
       }
       if (
         !validatePolicy(currentPolicy) ||
-        digest(currentPolicy) !== record.policyDigest ||
         !currentPolicy.approverIds.includes(approverId)
       ) {
-        throw new Error("Approver or policy is not valid for this approval.");
+        throw new Error("Approver is not authorized by the current policy.");
       }
       return { record: this.transition(record, "denied", now, "human_rejected") };
     });

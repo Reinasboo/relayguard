@@ -4,18 +4,19 @@ RelayGuard is one Mezo MUSD payments product with two connected experiences: QR-
 
 ## Current status
 
-The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements, a Vercel serverless entry point, and Supabase Postgres persistence. Production configuration and the live database smoke test are verified; the public deployment and cross-device wallet flow remain pending. It includes:
+The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements, a Vercel serverless entry point, and Supabase Postgres persistence. The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app); API, health, config, x402 challenge, and checkout routing have been smoke-tested. A previous live QR test exposed a route issue that has since been fixed, but the complete authenticated invoice-to-wallet-payment flow still needs a fresh production pass. The current working tree also adds trove-aware MUSD spending policy and checkout recovery improvements that have not yet been deployed. It includes:
 
 - Exact integer/base-unit policy checks for agent, network, asset, recipient, transaction cap, daily cap, and approval threshold.
 - A storage-backed authorization lifecycle with per-agent idempotency, atomic daily reservations, expiring approvals bound to the intent and policy version, and a hash-linked audit log. Local development uses SQLite; Vercel is configured to use the hosted Postgres implementation.
 - A versioned adapter interface and Mezo testnet integration for native BTC transfers and optional MUSD ERC-20 transfers.
 - A durable MUSD merchant invoice book with expiry, shareable checkout URL, generated QR code, direct buyer-wallet signing, authorization binding, and matching ERC-20 settlement verification.
 - An integrated x402 API paid in MUSD on Mezo Testnet, using the Mezo facilitator and a browser EIP-712 wallet flow. Unpaid requests return x402 payment requirements; the resource is unlocked only after facilitator settlement.
+- A read-only Mezo MUSD trove health check that gates automated MUSD spending: human approval below 150% ICR, a hard stop below the protocol's 110% minimum, and fail-closed behavior when the protocol read is unavailable.
 - Supabase Auth-backed merchant sign-in for invoice creation/history and operator audit/payment APIs; each merchant's local invoice history is scoped to their authenticated Supabase user.
 - A local-only browser console and HTTP API for intent review, policy decisions, human approval, explicit execution, settlement verification, and audit evidence.
 - Focused automated tests for policy limits, approval binding, idempotency, lifecycle transitions, and audit-chain integrity.
 
-The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). Both hosted migrations, Vercel production settings, and a read-only live Postgres readiness check are verified. The public deployment and production-origin wallet/auth flow still need verification.
+The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). Both hosted migrations, Vercel production settings, and a read-only live Postgres readiness check are verified.
 
 ## Requirements
 

@@ -10,13 +10,13 @@
 6. Create a MUSD invoice to demonstrate the QR/human checkout path. Buyers connect their wallet and pay directly.
 7. Use the integrated x402 panel or `GET /api/paid-resource` to demonstrate the agent path. An unpaid request should return HTTP 402 with Mezo Testnet MUSD payment requirements; the browser client checks and, if required, requests the exact Permit2 allowance before the buyer signs authorization. The approval transaction uses BTC for gas; the facilitator settles the MUSD payment.
 
-Local development binds to loopback and stores invoice/authorization/audit data in SQLite. The Vercel function runtime selects Supabase Postgres when `DATABASE_URL` is configured. No public deployment is active yet.
+Local development binds to loopback and stores invoice/authorization/audit data in SQLite. The public Vercel deployment is [relayguard.vercel.app](https://relayguard.vercel.app) and uses Supabase Postgres when `DATABASE_URL` is configured. API health/config, x402 challenge, and checkout routing have been smoke-tested; a fresh complete invoice/QR wallet-payment test is still required.
 
 ## Vercel deployment assessment
 
 Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project is created, linked, and connected to the GitHub repository. `api/[...path].js` adapts the Express app to Vercel Functions; `vercel.json` routes shareable `/pay/` checkout links through the same API and serves the frontend from `public/`. Runtime persistence uses Supabase Postgres when `DATABASE_URL` is configured; otherwise Vercel startup fails closed. All 23 required production variable names are configured as hidden Vercel secrets.
 
-Both Supabase migrations are applied: merchant-authenticated invoice schema and runtime authorization/audit tables. The read-only live database smoke test passed for connectivity, invoice schema access, and the audit chain. `npm test` (26/26), `npm run typecheck`, and `vercel build --prod --yes` pass. The production deployment and its public API smoke tests are still pending.
+Both Supabase migrations are applied: merchant-authenticated invoice schema and runtime authorization/audit tables. The read-only live database smoke test passed for connectivity, invoice schema access, and the audit chain. The public app and core API smoke tests are live. The latest local changes pass `npm test` (35/35) and `npm run typecheck`; they still need a Vercel deployment and post-deploy verification.
 
 ## Supabase CLI, Auth, and database
 
@@ -41,4 +41,4 @@ Both Supabase migrations are applied: merchant-authenticated invoice schema and 
 
 ## Public deployment gate
 
-Do not point a public host at the current server. Before deployment, move invoices, authorizations, and audit events to hosted PostgreSQL with the prepared RLS policies; finish role/profile onboarding; review operator authorization on every route; configure HTTPS, a production origin/redirect allowlist, rate limits, backups, monitoring, and test-only key custody. The funded invoice and x402 settlement have been completed on testnet; cross-device browser wallet verification and the public deployment remain outstanding. No public host or deployment URL is configured.
+The public host is active. Before treating it as production-ready, re-run the full authenticated QR checkout on a second device, deploy the current trove-aware policy and bounded verification changes, review operator authorization on every route, and complete rate-limit, backup, monitoring, and test-only key-custody checks. The recorded invoice and x402 settlements are on testnet, not mainnet.

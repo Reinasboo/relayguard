@@ -9,7 +9,7 @@
 - [x] Test invoice creation, QR image delivery, buyer zero-balance rejection, invoice remains open, and malformed-hash rejection against the local API.
 - [x] Complete a 1.00 MUSD invoice payment, match its transfer event, and transition the invoice to `paid`: `0x875fcecd46badf138205c83d048e7163b9fed5d7c810ef46c5e14ba52d655868`.
 - [x] Verify unpaid x402 requests return HTTP 402 with the canonical testnet MUSD token, exact `0.001 MUSD` price, Mezo Testnet chain ID, and merchant recipient.
-- [x] Run automated tests: 26 passing; TypeScript/browser checks pass; production dependency audit reports 0 vulnerabilities.
+- [x] Run automated tests: 35 passing; TypeScript and browser syntax checks pass.
 - [x] Include the verified native BTC testnet transaction hash and receipt, clearly distinguished from MUSD checkout.
 - [x] Install Supabase CLI, authenticate, link the `relayguard` project, and successfully preview the database migration. Auth redirect URLs configured.
 - [x] Apply the RLS-protected merchant profile and invoice migration to the linked Supabase project and verify remote migration history.
@@ -20,7 +20,9 @@
 - [x] Make the browser x402 client check Permit2 allowance, request only the exact MUSD approval when required, and verify its successful receipt and resulting allowance.
 - [ ] Manually verify browser-wallet signing in the merchant checkout and x402 UI with the demo buyer account.
 - [x] Configure the pooled Postgres URL and required Mezo/Supabase settings in Vercel; verify production build and live database readiness.
-- [ ] Deploy and verify public health/config/x402 responses, protected invoice routes, checkout links, and hosted persistence; local automated tests still exercise SQLite.
-- [ ] Update Supabase Auth redirect URLs and manually test connected browser-wallet signing on the deployed origin.
-- [ ] Create a secure public deployment only after hosted persistence, auth/tenant isolation, HTTPS, and operational/key boundaries are verified.
+- [x] Deploy the public Vercel app and verify health/config, x402 challenge, checkout routing, and hosted Postgres readiness.
+- [x] Configure Supabase Auth redirect URLs for the production origin.
+- [ ] Complete an authenticated production invoice, QR scan, wallet signature, and receipt-verification pass from a second device.
+- [ ] Deploy and live-test the Wave 2 trove-aware MUSD controls and bounded verification states.
+- [ ] Finish production operational hardening: rate limits, monitoring, backups, route-by-route operator review, and key custody.
 - [ ] Validate final buildathon rules, submission format, and demo reproducibility.

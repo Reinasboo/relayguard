@@ -28,6 +28,8 @@ import { createMezoAgentIntegrationBrief } from "./x402/resource.js";
 import type { PaymentIntent, SpendingPolicy } from "./core/domain.js";
 import { MezoAdapter } from "./adapters/mezo.js";
 import type { PreparedPayment } from "./adapters/contract.js";
+import { digest } from "./core/policy.js";
+import { readMezoTroveHealth, TROVE_MINIMUM_ICR, TROVE_REVIEW_ICR, type MezoTroveHealth } from "./mezo/trove-health.js";
 import QRCode from "qrcode";
 
 loadDotenv({ path: ".env.app.local", override: true });
@@ -180,7 +182,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed as Record<string, unknown>;
 }
 
-function policyFor(asset: "BTC" | "MUSD", decimals: number): SpendingPolicy {
+function policyFor(asset: "BTC" | "MUSD", decimals: number, troveHealth?: MezoTroveHealth): SpendingPolicy {
   const defaults =
     asset === "BTC"
       ? { max: "0.001", daily: "0.005", approval: "0.0005" }
@@ -189,6 +191,10 @@ function policyFor(asset: "BTC" | "MUSD", decimals: number): SpendingPolicy {
   const max = process.env[`${prefix}_MAX_TRANSACTION`] ?? defaults.max;
   const daily = process.env[`${prefix}_DAILY_LIMIT`] ?? defaults.daily;
   const approval = process.env[`${prefix}_APPROVAL_THRESHOLD`] ?? defaults.approval;
+  const approvalThresholdAtomic =
+    asset === "MUSD" && troveHealth?.risk === "review_required"
+      ? "1"
+      : parseUnits(approval, decimals).toString();
   return {
     id: `mezo-testnet-${asset.toLowerCase()}`,
     version: 1,
@@ -197,7 +203,7 @@ function policyFor(asset: "BTC" | "MUSD", decimals: number): SpendingPolicy {
     asset,
     maxTransactionAtomic: parseUnits(max, decimals).toString(),
     dailyLimitAtomic: parseUnits(daily, decimals).toString(),
-    approvalThresholdAtomic: parseUnits(approval, decimals).toString(),
+    approvalThresholdAtomic,
     allowedRecipients,
     approverIds: [approverId]
   };
@@ -329,6 +335,15 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       return;
     }
     let musd: { address: string; balanceAtomic: string; decimals: number } | null = null;
+    let trove: MezoTroveHealth | { readonly status: "unavailable"; readonly observedAt: number } = {
+      status: "unavailable",
+      observedAt: Date.now()
+    };
+    try {
+      trove = await readMezoTroveHealth(publicClient, signerAddress);
+    } catch (error) {
+      console.error("Could not read Mezo trove health:", error);
+    }
     const tokenAddress = process.env.MEZO_TOKEN_ADDRESS;
     if (tokenAddress && isAddress(tokenAddress)) {
       try {
@@ -362,6 +377,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       nativeBalanceAtomic: balance.toString(),
       nativeBalance: formatUnits(balance, mezoTestnet.nativeCurrency.decimals),
       musd,
+      trove,
+      trovePolicy: {
+        minimumIcrAtomic: TROVE_MINIMUM_ICR.toString(),
+        reviewIcrAtomic: TROVE_REVIEW_ICR.toString()
+      },
       signingReady: Boolean(signerPrivateKey),
       policy: {
         configuredRecipients: allowedRecipients,
@@ -721,7 +741,21 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
           ? body.idempotencyKey.trim().slice(0, 128)
           : crypto.randomUUID()
     };
-    const policy = policyFor(asset as "BTC" | "MUSD", details.decimals);
+    let troveHealth: MezoTroveHealth | undefined;
+    if (asset === "MUSD") {
+      try {
+        troveHealth = await readMezoTroveHealth(publicClient, signerAddress);
+      } catch (error) {
+        console.error("MUSD authorization paused because Mezo trove health is unavailable:", error);
+        response(res, 503, { error: "Could not verify Mezo MUSD trove health. MUSD authorization is paused; retry when the Mezo RPC is available." });
+        return;
+      }
+      if (troveHealth.risk === "below_minimum") {
+        response(res, 403, { error: "MUSD spending is blocked because the active trove is below Mezo's 110% minimum collateral ratio." });
+        return;
+      }
+    }
+    const policy = policyFor(asset as "BTC" | "MUSD", details.decimals, troveHealth);
     const result = await authorization.request(intent, policy);
     if (result.record.status === "denied") {
       response(res, 403, { record: result.record, error: result.record.reason ?? "Policy denied this payment." });
@@ -767,7 +801,21 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     }
     const record = await authorization.get(recordId);
     const details = await assetDetails(record.intent.asset);
-    const policy = policyFor(record.intent.asset as "BTC" | "MUSD", details.decimals);
+    let troveHealth: MezoTroveHealth | undefined;
+    if (record.intent.asset === "MUSD") {
+      try {
+        troveHealth = await readMezoTroveHealth(publicClient, signerAddress);
+      } catch (error) {
+        console.error("MUSD approval paused because Mezo trove health is unavailable:", error);
+        response(res, 503, { error: "Could not verify current Mezo trove health. Approval is paused; retry when the Mezo RPC is available." });
+        return;
+      }
+      if (troveHealth.risk === "below_minimum") {
+        response(res, 409, { error: "MUSD approval is blocked because the active trove is below Mezo's 110% minimum collateral ratio." });
+        return;
+      }
+    }
+    const policy = policyFor(record.intent.asset as "BTC" | "MUSD", details.decimals, troveHealth);
     const approved = await authorization.approve(recordId, approverId, body.challenge, policy);
     const prepared = await adapter.prepare(approved.intent, undefined, {
       rpcUrl,
@@ -798,6 +846,20 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     return;
   }
 
+  const cancelMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancelMatch) {
+    const recordId = decodeURIComponent(cancelMatch[1] ?? "");
+    const record = await authorization.get(recordId);
+    if (record.status !== "authorized" && record.status !== "awaiting_approval") {
+      response(res, 409, { error: `Payment cannot be cancelled from state '${record.status}'.`, record });
+      return;
+    }
+    const cancelled = await authorization.cancel(recordId);
+    pendingPayments.delete(recordId);
+    response(res, 200, { record: cancelled, message: "Authorization cancelled; no payment was submitted." });
+    return;
+  }
+
   const executeMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/execute$/);
   if (req.method === "POST" && executeMatch) {
     const recordId = decodeURIComponent(executeMatch[1] ?? "");
@@ -805,6 +867,28 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     if (record.status !== "authorized") {
       response(res, 409, { error: `Payment cannot execute from state '${record.status}'.`, record });
       return;
+    }
+    let troveHealth: MezoTroveHealth | undefined;
+    if (record.intent.asset === "MUSD") {
+      try {
+        troveHealth = await readMezoTroveHealth(publicClient, signerAddress);
+      } catch (error) {
+        console.error("MUSD execution paused because Mezo trove health is unavailable:", error);
+        response(res, 503, { error: "Could not verify current Mezo trove health. No payment was submitted; retry when the Mezo RPC is available.", record });
+        return;
+      }
+      if (troveHealth.risk === "below_minimum") {
+        response(res, 409, { error: "MUSD execution is blocked because the active trove is below Mezo's 110% minimum collateral ratio.", record });
+        return;
+      }
+      const currentPolicy = policyFor("MUSD", (await assetDetails("MUSD")).decimals, troveHealth);
+      if (digest(currentPolicy) !== record.policyDigest) {
+        response(res, 409, {
+          error: "Mezo trove health changed after authorization. No payment was submitted; cancel this intent and request a fresh policy decision.",
+          record
+        });
+        return;
+      }
     }
     let prepared = pendingPayments.get(recordId);
     if (!prepared) {

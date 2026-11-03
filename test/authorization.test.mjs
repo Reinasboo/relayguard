@@ -159,6 +159,20 @@ test("approval challenge is bound to the policy, approver, and exact request", (
   );
 });
 
+test("an authorized approver can reject an intent after its spending policy changes", () => {
+  const service = new AuthorizationService();
+  const result = service.request(intent({ amountAtomic: "500" }), policy, 100);
+  assert.ok(result.approvalChallenge);
+  const rejected = service.reject(
+    result.record.id,
+    "human-1",
+    { ...policy, version: 2 },
+    101
+  );
+  assert.equal(rejected.status, "denied");
+  assert.equal(rejected.reason, "human_rejected");
+});
+
 test("expired approvals fail closed and cannot be reused", () => {
   const service = new AuthorizationService();
   const result = service.request(intent({ amountAtomic: "500" }), policy, 100);

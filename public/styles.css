@@ -49,6 +49,14 @@ h1 { margin: 8px 0 7px; font-size: clamp(27px, 3vw, 35px); font-weight: 600; }
 .shield { color: var(--green); font-size: 17px; }
 .stats { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 13px; }
 .stats:has(#musd-card:not(.hidden)) { grid-template-columns: 1.2fr 1fr 1fr 1fr; }
+.trove-monitor { margin-top: 13px; padding: 17px; }
+.trove-monitor .panel-heading { margin-bottom: 14px; }
+.trove-monitor h2 { margin: 4px 0 0; font-size: 15px; }
+.trove-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.trove-metrics > div { min-width: 0; padding: 10px 12px; border: 1px solid #26333f; border-radius: 7px; background: #0d141b; }
+.trove-metrics span { display: block; color: #82909e; font: 9px "DM Mono", monospace; letter-spacing: .7px; }
+.trove-metrics strong { display: block; margin-top: 6px; color: #e4ebf0; font: 600 14px "Space Grotesk", sans-serif; overflow-wrap: anywhere; }
+.trove-policy { margin: 12px 0 0; color: #9aa7b4; font-size: 11px; line-height: 1.6; }
 .stat-card, .panel { border: 1px solid var(--line); border-radius: 10px; background: linear-gradient(145deg, rgba(20,29,38,.98), rgba(16,23,31,.98)); }
 .stat-card { min-height: 113px; padding: 16px 17px; }
 .stat-heading { display: flex; justify-content: space-between; align-items: center; font-size: 9px; }

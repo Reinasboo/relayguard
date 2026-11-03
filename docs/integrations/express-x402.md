@@ -1,6 +1,7 @@
-# Accept MUSD payments on your API with RelayGuard
+# Integrate RelayGuard into your website or API with Express x402
 
-RelayGuard merchants can protect an endpoint in their own Express API. Buyers
+Integrate RelayGuard with your own website by protecting a route in its
+Node.js/Express backend. Buyers
 pay the exact MUSD amount through x402; successful settlement sends MUSD
 directly to the merchant's verified Mezo Testnet wallet before the route
 returns its protected response.
@@ -9,6 +10,12 @@ RelayGuard manages the merchant's verified destination, resource settings, and
 revocable API key. Settlement is performed by the configured x402 facilitator
 (Vativ in the current demo), not by a RelayGuard custody wallet. RelayGuard
 never needs the merchant's private key.
+
+This SDK/adapter protects a server-side API route; it does not replace your
+storefront or provide a drop-in browser checkout widget. For regular product
+checkout, merchants can also share RelayGuard's hosted invoice link or QR code.
+The Express adapter is currently provided as source code in this repository,
+not as a published npm package.
 
 ## 1. Verify a receiving wallet
 
@@ -38,7 +45,7 @@ npm install @x402/core @x402/evm @x402/express
 ```
 
 Copy [`src/x402/express.ts`](../../src/x402/express.ts) from this repository
-into your TypeScript project as `relayguard-express.ts`. Set the key only in
+into your Node.js/Express backend project as `relayguard-express.ts`. Set the key only in
 your API server environment:
 
 ```text

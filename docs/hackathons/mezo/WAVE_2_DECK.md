@@ -47,7 +47,10 @@ QR checkout for people. x402 access for agents. A Mezo-native spending policy fo
 
 - **People:** shareable invoice and QR; buyer signs the exact MUSD transfer.
 - **Agents:** x402 exact terms; facilitator settles before API access.
+- **Merchant integration:** add the RelayGuard Express x402 SDK/adapter to your own Node.js API to protect a route on your website; keep your storefront and server.
 - Both pay the merchant directly; RelayGuard never holds checkout funds.
+
+The SDK/adapter is currently supplied as source code to copy into the merchant's project, not as a published npm package or drop-in browser checkout widget. Hosted invoice links and QR checkout remain available alongside this API integration.
 
 ---
 
@@ -64,7 +67,7 @@ RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and p
 
 150% is RelayGuard's review buffer; 110% is Mezo's minimum. These operator controls never open a trove or borrow/add collateral.
 
-**Status:** the policy and buyer checkout preflight/optional Testnet trove-opening flow are deployed; 45 automated tests pass, including controlled threshold and RPC-failure cases. A production browser mock reached the underfunded state and rendered a generated QR, but real browser-wallet signing, a valid production invoice QR, and the borrow review with a real wallet remain unverified. No borrow transaction was broadcast for this feature.
+**Status:** the policy and buyer checkout preflight/optional Testnet trove-opening flow are deployed; 49 automated tests pass, including controlled threshold and RPC-failure cases. A production browser mock reached the underfunded state and rendered a generated QR, but real browser-wallet signing, a valid production invoice QR, and the borrow review with a real wallet remain unverified. No borrow transaction was broadcast for this feature.
 
 ---
 
@@ -87,6 +90,7 @@ The policy uses the operator's trove as a spending signal; it does not open or m
 
 - The dashboard loads one protocol snapshot per refresh instead of waiting on sequential, duplicate health reads.
 - Merchant invoices and API integrations load concurrently; a new invoice is shown before its activity list refresh completes.
+- Merchants can connect their own API routes with the Express x402 adapter and a resource-scoped server key kept on the server.
 - Checkout labels wallet, balance, authorization, and receipt-verification stages; API calls time out with a retry path.
 - Receipt checks stop after 20 attempts and clearly warn buyers not to pay again while settlement is pending.
 - Changed trove risk blocks stale approval/execution; cancel and submit fresh.
@@ -100,7 +104,7 @@ These changes remove avoidable waits; total response time still varies with host
 - **1.00 MUSD invoice:** settled to the configured merchant and verified against the exact token transfer.
 - **0.001 MUSD x402 resource:** facilitator settlement was verified; the protected resource was returned.
 - Both historical payments reached the same merchant receiver.
-- **45 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
+- **49 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
 
 Full transaction references and test limitations: [test results](./TEST_RESULTS.md). These are testnet results, not mainnet production evidence.
 

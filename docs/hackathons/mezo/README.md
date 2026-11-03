@@ -1,6 +1,6 @@
 # RelayGuard Mezo Buildathon
 
-RelayGuard targets the Access & Distribution track with two MUSD payment paths in one merchant workspace: QR invoices for people and x402-protected API access for agents. Both settle to the same merchant wallet, and both Mezo Testnet flows have on-chain verification evidence. See the [product strategy](./PRODUCT_STRATEGY.md).
+RelayGuard targets the Access & Distribution track with two MUSD payment paths in one merchant workspace: QR invoices for people and x402-protected API access for agents. Merchants can integrate the Express x402 SDK/adapter into their own Node.js API routes while keeping their own website and server. Both paths settle to the merchant's verified wallet, and both Mezo Testnet flows have on-chain verification evidence. See the [product strategy](./PRODUCT_STRATEGY.md) and [integration guide](../../integrations/express-x402.md).
 
 ## Scope
 

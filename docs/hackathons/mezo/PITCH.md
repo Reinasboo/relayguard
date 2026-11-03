@@ -2,7 +2,7 @@
 
 **RelayGuard makes MUSD useful to both people and software agents.**
 
-A merchant creates an exact-amount MUSD invoice with a shareable checkout page and QR code, or exposes an x402-protected resource priced in MUSD. People pay directly from their own Mezo-compatible wallet; agents use a signed x402 authorization settled by Mezo's facilitator. RelayGuard checks invoices, enforces authenticated merchant controls, and reports paid status only after settlement evidence is verified.
+A merchant creates an exact-amount MUSD invoice with a shareable checkout page and QR code, or integrates RelayGuard's Express x402 SDK/adapter into its own Node.js API to protect a website route or paid resource. People pay directly from their own Mezo-compatible wallet; agents use a signed x402 authorization settled by Mezo's facilitator. RelayGuard checks invoices, enforces authenticated merchant controls, and reports paid status only after settlement evidence is verified. The current SDK/adapter is source code to add to a merchant project, not a published npm package or a browser checkout widget.
 
 ## The need
 
@@ -22,6 +22,7 @@ Mezo combines BTC-backed MUSD with an EVM-compatible token flow. RelayGuard uses
 - Balance and policy preflight; the invoice stays open when preflight fails.
 - Receipt and `Transfer`-event validation against the precise payer, merchant, amount, token, and authorization.
 - x402 paid-resource middleware, Mezo Testnet facilitator discovery, MUSD price/recipient requirements, and wallet typed-data client.
+- Express x402 adapter for protecting a merchant's own Node.js API route; the merchant keeps the website, server, and protected response while settlement goes to its verified wallet.
 - Supabase email authentication for merchant invoice management and operator audit/payment APIs.
 - Existing agent control plane for explicit operator-authorized testnet BTC execution.
 

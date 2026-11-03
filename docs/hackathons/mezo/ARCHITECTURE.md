@@ -8,6 +8,7 @@ RelayGuard combines a shared policy/audit core with merchant MUSD checkout, an x
 - Checkout Service: SQLite-backed local and Postgres-backed Vercel MUSD invoice lifecycle, expiry, authorization binding, transaction reference, and settlement state
 - Mezo Adapter: configuration validation, native BTC transfer or MUSD receipt/event settlement verification
 - Merchant UI: Supabase-authenticated invoice creation/history, shareable checkout URL, QR image, customer wallet connection, trove health context, and an integrated x402 paid-resource client
+- Merchant Express SDK/adapter: source middleware installed in the merchant's own Node.js API to protect its routes; RelayGuard supplies verified x402 resource terms while the merchant owns its storefront, server, and response
 - x402 middleware: Mezo facilitator capability sync, MUSD exact-payment requirement, and protected resource release after facilitator settlement
 - Authentication: verified Supabase bearer tokens for merchant invoice management and operator APIs; invoice listings are scoped by authenticated merchant user ID
 - RPC layer: official Mezo or Mezo Testnet RPC endpoint
@@ -35,10 +36,13 @@ RelayGuard combines a shared policy/audit core with merchant MUSD checkout, an x
 
 ## Agent paid-resource flow
 
-1. An agent requests the protected HTTP resource without payment credentials.
-2. x402 middleware returns HTTP 402 with exact MUSD payment requirements for Mezo Testnet and the merchant recipient.
-3. A buyer client signs the typed-data payment authorization with its connected wallet and retries the request.
-4. The facilitator verifies and settles the payment, sponsoring gas; the middleware releases the resource only after successful settlement.
+1. Merchant registers its API route and MUSD resource in RelayGuard, then adds the Express SDK/adapter to its own Node.js API using a server-side resource key.
+2. An agent requests the protected HTTP resource without payment credentials.
+3. x402 middleware returns HTTP 402 with exact MUSD payment requirements for Mezo Testnet and the merchant recipient.
+4. A buyer client signs the typed-data payment authorization with its connected wallet and retries the request.
+5. The facilitator verifies and settles the payment, sponsoring gas; the middleware releases the resource only after successful settlement.
+
+The adapter is currently provided as source code, not as a published npm package or browser checkout widget. See the [Express x402 integration guide](../../integrations/express-x402.md).
 
 ## Trust boundary
 

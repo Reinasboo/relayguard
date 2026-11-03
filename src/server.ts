@@ -1411,6 +1411,7 @@ app.use(async (req: Request, res: Response) => {
     const files: Record<string, { name: string; type: string }> = {
       "/": { name: "index.html", type: "text/html; charset=utf-8" },
       "/app.js": { name: "app.js", type: "text/javascript; charset=utf-8" },
+      "/mezo-client.js": { name: "mezo-client.js", type: "text/javascript; charset=utf-8" },
       "/x402-client.js": { name: "x402-client.js", type: "text/javascript; charset=utf-8" },
       "/styles.css": { name: "styles.css", type: "text/css; charset=utf-8" },
       "/relayguard-mark.svg": { name: "relayguard-mark.svg", type: "image/svg+xml" }

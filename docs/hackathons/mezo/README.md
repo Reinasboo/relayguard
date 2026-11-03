@@ -9,6 +9,8 @@ RelayGuard targets the Access & Distribution track with two MUSD payment paths i
 - Native BTC transfer support and optional MUSD ERC-20 transfer support
 - RPC-based transaction receipt lookup and settlement verification
 - Durable merchant invoices with expiry, local QR generation, direct wallet checkout, and invoice settlement status
+- Buyer-side MUSD/BTC and estimated-gas preflight before invoice authorization
+- Optional, separate, explicitly confirmed Mezo Testnet trove opening for eligible underfunded buyers
 - Honest fail-closed behavior when RPC credentials or a signing key are missing
 
 ## Required environment
@@ -21,4 +23,4 @@ RelayGuard targets the Access & Distribution track with two MUSD payment paths i
 
 ## Current implementation status
 
-Automated tests pass. A 1.00 MUSD invoice payment and a 0.001 MUSD facilitator-settled x402 payment were confirmed on Mezo Testnet, with both paying the same receiver; see [test results](./TEST_RESULTS.md). Merchant authentication works. The application still uses local SQLite and binds to loopback, so it is not yet a public deployment; browser wallet signing and cross-device access still need validation.
+Automated tests pass (45). A 1.00 MUSD invoice payment and a 0.001 MUSD facilitator-settled x402 payment were confirmed on Mezo Testnet, with both paying the same receiver; see [test results](./TEST_RESULTS.md). Merchant authentication and the public Vercel deployment are already established. The new buyer preflight and optional Testnet trove-opening flow are local changes, not yet deployed or manually verified with a browser wallet. No borrow transaction was broadcast for this change.

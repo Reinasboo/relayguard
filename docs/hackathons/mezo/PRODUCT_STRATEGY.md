@@ -27,10 +27,16 @@ This is an access-and-distribution product rather than another generic transfer 
 2. Merchant creates a fixed-amount MUSD invoice with an expiry.
 3. RelayGuard stores the invoice durably and returns a shareable link and locally generated QR image.
 4. Customer wallet switches to Mezo Testnet and connects from the checkout page.
-5. Backend checks invoice state, token contract, buyer MUSD balance, recipient policy, and exact amount.
+5. Checkout reads the buyer's MUSD and native BTC balances and estimates direct-transfer gas before requesting invoice authorization. Insufficient MUSD or gas creates no authorization and sends no payment.
 6. Customer reviews and signs the direct ERC-20 transfer in their wallet.
 7. Backend persists the transaction reference, reads the Mezo receipt, decodes the matching `Transfer` event, and checks sender, recipient, amount, asset, and authorization before marking the invoice paid.
 8. If the wallet rejects before broadcast, the authorization is cancelled and the invoice is released. If the wallet broadcasts but the API response fails, the page attempts reconciliation and warns the customer not to pay again.
+
+### Optional buyer trove onboarding (Testnet only)
+
+If a connected buyer is short on MUSD, has no active trove, and the live minimum borrow can cover the shortfall, checkout can present an optional BorrowerOperations flow. It reads current Testnet debt minimums, account fee exemption, borrowing fee, interest rate, PriceFeed, and trove status; estimates collateral using a conservative 200% initial collateral-ratio app target; and estimates/simulates the transaction before wallet review. The buyer must review the quoted debt, fee, collateral, and gas, acknowledge liquidation risk, and confirm the separate transaction in their own wallet. This is not a payment and does not automatically authorize or pay the invoice. Existing troves are not changed; existing borrowers are directed to Mezo's official app. The minimum MUSD borrow is not offered where it cannot cover the invoice shortfall.
+
+The 200% opening target is RelayGuard's conservative interface policy, not a Mezo protocol requirement or a guarantee against liquidation. The buyer still needs native BTC for both collateral and gas. This feature is Testnet-only; browser wallet signing has not yet been manually validated, and no transaction was broadcast as part of this implementation.
 
 The merchant's x402 route uses the facilitator's `exact` scheme at `eip155:31611`. An unpaid request returns a protocol 402 response naming the official MUSD token, exact price, and merchant recipient. An x402-compatible client signs the typed-data authorization; the merchant's route unlocks only after successful facilitator settlement. RelayGuard's management API and Express adapter are implemented in source, but the new hosted migration and production deployment still need to be applied and verified.
 
@@ -57,7 +63,7 @@ The MUSD agent-payment policy now reads the operator's Mezo Testnet trove status
 - Approval is bound to the original risk-tier policy. If the risk tier changes, approval/execution stop and the pending request can be cancelled; authorized humans may still reject a stale request.
 - The dashboard displays the observed trove status, ICR, collateral, and debt. A signer with no active trove can still use the standard MUSD limits; this feature does not force users to open a loan or add collateral.
 - These controls are for RelayGuard's configured operator signer and its agent-payment authorization routes. They do not monitor each checkout payer's personal trove or gate the merchant invoice and x402 settlement flows, which remain separate exact MUSD payments.
-- The trove-aware policy, block-pinned evidence, audit commitments, cancellation recovery, and bounded checkout retry/loading states are deployed. All 38 automated tests pass locally. Production health and the healthy trove display are verified, but threshold boundary behavior and the full buyer QR flow have not had a fresh production end-to-end test.
+- The trove-aware policy, block-pinned evidence, audit commitments, cancellation recovery, and bounded checkout retry/loading states are deployed. The current local changes add buyer-side preflight and optional Testnet trove onboarding; these changes are not deployed. All 45 automated tests pass locally, including controlled policy boundaries and RPC failures. Live production threshold manipulation and browser-wallet testing of the new checkout flow remain outstanding.
 
 The reserve and review thresholds are RelayGuard policy choices, not Mezo protocol parameters. The 110% minimum is the protocol's stated minimum collateral ratio. Testnet contract reads may be unavailable; in that case, the dashboard reports the state as unavailable and MUSD policy actions remain paused.
 

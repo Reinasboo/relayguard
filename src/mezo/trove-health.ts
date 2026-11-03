@@ -58,6 +58,9 @@ export async function readMezoTroveHealth(
       blockNumber
     })
   ]);
+  if (price <= 0n) {
+    throw new Error("Mezo PriceFeed returned a non-positive BTC price.");
+  }
   const evidence = {
     protocol: "mezo-musd-trove" as const,
     borrower,

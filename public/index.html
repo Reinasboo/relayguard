@@ -335,7 +335,7 @@
                 <article class="faq-item" data-faq-category="policy">
                   <details>
                     <summary><span class="faq-q-number">07</span><span class="faq-question">Does every buyer need a trove? Does RelayGuard change one?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
-                    <div class="faq-answer"><p>No. Trove health is a signal for the configured operator’s agent-spending policy; it is not a checkout requirement for customers. RelayGuard’s integration is read-only: it does not open, top up, repay, or otherwise modify a trove automatically.</p></div>
+                    <div class="faq-answer"><p>No. A buyer can pay from an existing MUSD balance without a trove. If the connected wallet is short on MUSD and has no active trove, checkout offers an optional Mezo Testnet-only BorrowerOperations flow. It shows the live minimum borrow, fee, fixed simple interest rate, gas compensation, BTC collateral, oracle price, estimated collateral ratio, and gas before the buyer separately confirms in their own wallet. This creates debt and may expose BTC to liquidation; RelayGuard never opens a trove or pays the invoice automatically. Wallets with an existing trove are directed to Mezo’s official app to manage that position.</p></div>
                   </details>
                 </article>
                 <article class="faq-item" data-faq-category="trust">
@@ -397,7 +397,26 @@
               <div class="checkout-qr-wrap"><img id="checkout-qr" alt="QR code for this MUSD checkout"><small>Scan with a wallet to open this invoice</small></div>
               <div class="checkout-facts"><div><span>Network</span><strong>Mezo Testnet</strong></div><div><span>Asset</span><strong>MUSD · ERC-20</strong></div><div><span>Merchant</span><code id="checkout-merchant-address"></code></div><div><span>Expires</span><strong id="checkout-expiry"></strong></div></div>
               <div id="checkout-wallet-state" class="notice">Connect a Mezo-compatible wallet to check your MUSD balance and pay.</div>
+              <div id="checkout-preflight" class="checkout-preflight hidden" role="status" aria-live="polite"></div>
               <button id="connect-pay-button" class="button button-primary" type="button">Connect wallet &amp; pay with MUSD</button>
+              <section id="checkout-borrow-panel" class="checkout-borrow hidden" aria-labelledby="checkout-borrow-heading">
+                <div class="checkout-borrow-heading"><span class="eyebrow">OPTIONAL · MEZO TESTNET</span><span class="checkout-borrow-mark">↗</span></div>
+                <h2 id="checkout-borrow-heading">Short on MUSD?</h2>
+                <p id="checkout-borrow-intro">If this wallet has no active trove, you can separately review an optional testnet borrow. Borrowing creates a BTC-backed debt; it is never automatic and does not pay this invoice.</p>
+                <div id="checkout-borrow-status" class="checkout-borrow-status" role="status">Checking this wallet’s Mezo state…</div>
+                <div id="checkout-borrow-form" class="hidden">
+                  <label class="field" for="checkout-borrow-collateral">BTC collateral to lock
+                    <input id="checkout-borrow-collateral" type="number" min="0" step="any" inputmode="decimal" placeholder="Enter BTC collateral">
+                    <small id="checkout-borrow-minimum" class="field-help">The required amount is calculated from Mezo’s current PriceFeed and borrowing terms.</small>
+                  </label>
+                  <button id="checkout-borrow-review" class="button button-quiet" type="button">Review testnet trove</button>
+                  <div id="checkout-borrow-review-result" class="checkout-borrow-review hidden"></div>
+                  <label id="checkout-borrow-ack-wrap" class="checkout-borrow-ack hidden"><input id="checkout-borrow-ack" type="checkbox"><span>I understand this locks BTC and creates an interest-bearing MUSD debt that can be liquidated if collateral falls below protocol requirements.</span></label>
+                  <button id="checkout-borrow-confirm" class="button button-primary hidden" type="button" disabled>Confirm &amp; open trove in wallet</button>
+                </div>
+                <a class="borrow-guide" href="https://testnet.mezo.org/feature/borrow" target="_blank" rel="noreferrer noopener">Review or manage a Mezo Testnet trove ↗</a>
+                <p class="checkout-borrow-footnote">The official Testnet deployment currently requires at least 1,800 MUSD borrowed, plus a 200 MUSD gas-compensation amount and any current borrowing fee. RelayGuard’s 200% opening buffer is an app check, not a Mezo parameter. BTC gas is additional.</p>
+              </section>
               <div id="checkout-result" class="hidden"></div>
               <a class="borrow-guide" href="https://mezo.org/docs/users/borrow/mint-musd/" target="_blank" rel="noreferrer noopener">Learn about MUSD on Mezo ↗</a>
             </div>

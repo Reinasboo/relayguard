@@ -9,7 +9,7 @@
 - [x] Test invoice creation, QR image delivery, buyer zero-balance rejection, invoice remains open, and malformed-hash rejection against the local API.
 - [x] Complete a 1.00 MUSD invoice payment, match its transfer event, and transition the invoice to `paid`: `0x875fcecd46badf138205c83d048e7163b9fed5d7c810ef46c5e14ba52d655868`.
 - [x] Verify unpaid x402 requests return HTTP 402 with the canonical testnet MUSD token, exact `0.001 MUSD` price, Mezo Testnet chain ID, and merchant recipient.
-- [x] Run automated tests: 38 passing; TypeScript and browser syntax checks pass.
+- [x] Run automated tests: 45 passing; TypeScript and browser syntax checks pass.
 - [x] Include the verified native BTC testnet transaction hash and receipt, clearly distinguished from MUSD checkout.
 - [x] Install Supabase CLI, authenticate, link the `relayguard` project, and successfully preview the database migration. Auth redirect URLs configured.
 - [x] Apply the RLS-protected merchant profile and invoice migration to the linked Supabase project and verify remote migration history.
@@ -27,6 +27,9 @@
 - [x] Pin Mezo trove reads to one block and retain policy evidence for request, approval, and execution checks.
 - [x] Bind policy/evidence digests into the hash-linked audit trail for SQLite and Postgres; apply the forward migration.
 - [x] Protect cancellation with the operator session guard and let operators cancel stale pending approvals.
-- [ ] Live-test policy behavior at the review/block thresholds and with RPC failure using controlled test cases.
+- [x] Cover policy behavior at exact review/block thresholds and invalid PriceFeed/RPC failure paths with controlled automated tests.
+- [x] Add buyer-side MUSD/BTC balance and transfer-gas preflight before invoice authorization.
+- [x] Add optional, explicitly reviewed Mezo Testnet trove opening for eligible underfunded buyers; keep borrowing and invoice payment as separate transactions.
+- [ ] Manually verify the new checkout preflight and optional BorrowerOperations flow in a browser wallet using a separate funded Testnet account; do not broadcast a borrow transaction without explicit approval.
 - [ ] Finish production operational hardening: rate limits, monitoring, backups, route-by-route operator review, and key custody.
 - [ ] Validate final buildathon rules, submission format, and demo reproducibility.

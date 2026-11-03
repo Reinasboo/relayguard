@@ -2,7 +2,7 @@
 
 ## Automated results
 
-- `npm test` passes 38 tests, including trove risk tiers, block-pinned protocol reads, authorization lifecycle, SQLite persistence, audit-chain integrity, adapter conformance, invoice lifecycle, and owner scoping.
+- `npm test` passes 45 tests, including trove risk tiers and exact policy boundaries, block-pinned protocol reads, authorization lifecycle, SQLite persistence, audit-chain integrity, adapter conformance, invoice lifecycle, and owner scoping.
 - Core policy tests cover spending limits, approval expiry, idempotency, stale-policy cancellation, and tamper detection for stored Mezo evidence.
 - Settlement verification compares native transaction value/recipient and requires an MUSD `Transfer` log matching the submitted call; the API then compares those fields to the stored authorized intent.
 - `node --check public/app.js`, TypeScript build, and `npm audit --omit=dev` pass; production dependency audit found zero advisories.
@@ -29,6 +29,16 @@
 - Permit2 required a token allowance before settlement. An exact `0.001 MUSD` allowance (not unlimited) was granted to canonical Permit2 at `0x000000000022D473030F116dDEE9F6B43aC78BA3`: [`0xe5ca4098ac03da35d7cedbbd76389a2bba0280d988d97636a5086a6ea075d20a`](https://explorer.test.mezo.org/tx/0xe5ca4098ac03da35d7cedbbd76389a2bba0280d988d97636a5086a6ea075d20a), successful in block `16372668`. The approval was limited to the x402 charge.
 - The browser x402 client now checks Permit2 allowance, requests only the exact charge if approval is needed, waits for a successful receipt, and verifies the resulting allowance. Automated tests cover exact approval calldata, receipt and allowance checks, and skipping an already-sufficient approval.
 - The server is loopback-only. Browser-wallet interaction and cross-device checkout have not been manually verified; this environment has no injected EVM wallet provider. The local signer exercised the x402 client protocol end to end.
+
+## Checkout preflight and optional trove flow
+
+- Buyer checkout now checks the connected wallet’s Mezo Testnet MUSD balance and BTC gas balance before requesting invoice authorization. It estimates the direct transfer gas when the MUSD balance is sufficient; insufficient MUSD or BTC gas does not create an authorization or submit a payment.
+- If the connected wallet has no active trove and the configured minimum borrow can cover the invoice shortfall, the page offers an optional Testnet `BorrowerOperations.openTrove` review. It reads the live minimum net debt, fee exemption and borrowing fee, interest rate, PriceFeed, and trove status; it estimates collateral at RelayGuard’s conservative 200% ICR app threshold and simulates/estimates the transaction before showing the wallet confirmation.
+- Borrowing is separate from checkout: the borrower reviews the debt, fee, interest, collateral, oracle price, and gas; explicitly acknowledges liquidation risk; and signs a distinct wallet transaction. After a successful receipt, the invoice remains unpaid and the buyer must separately continue to the exact MUSD payment. Existing troves are not modified, and a minimum borrow that cannot cover the invoice shortfall is not offered.
+- Controlled tests cover exact 110%/150% policy boundaries, invalid PriceFeed values, protocol-read failures, and collateral rounding at the 200% target. `npm run typecheck`, `node --check public/app.js`, and `git diff --check` pass.
+- A local browser smoke test with a mocked EIP-1193 provider exercised the insufficient-MUSD preflight and optional trove panel, then verified that an invoice shortfall larger than the minimum borrow is not offered an unusable borrow flow. Neither case called invoice authorization or broadcast a transaction.
+- Mocked-wallet browser regression checks covered gas-insufficient rejection before authorization, gas-cost display at Mezo's wei-scale fees, wallet-rejection release, resuming a previously authorized invoice with the same payer, and a simulated authorize-submit-verify-to-paid path. The QR image loaded when the mock included a generated PNG response for the QR route; the earlier blank mock omitted that route. These are UI simulations, not wallet signatures or on-chain payments.
+- Read-only RPC checks confirmed Testnet chain ID 31611, deployed Mezo contracts, a live PriceFeed, `minNetDebt` of 1,800 MUSD, 1% current interest (100 basis points), and the observed borrowing-fee terms. No transaction was broadcast for this feature. Browser-wallet signing and the new UI flow still require manual testing with a separate funded Testnet wallet; no such signing test is claimed.
 
 ## Live testnet checks
 

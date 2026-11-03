@@ -1,4 +1,11 @@
 import { payForRelayguardResource } from "./x402-client.js";
+import {
+  getMezoTroveOpeningTerms,
+  inspectMezoCheckoutWallet,
+  MEZO_TESTNET_MUSD,
+  openMezoTestnetTrove,
+  quoteMezoTroveOpen
+} from "./mezo-client.js";
 
 const byId = (id) => document.getElementById(id);
 const API_TIMEOUT_MS = 15_000;
@@ -10,6 +17,7 @@ let currentHash;
 let checkoutInvoice;
 let checkoutAuthorization;
 let checkoutWallet;
+let checkoutBorrowQuote;
 let checkoutVerificationInProgress = false;
 let appConfig;
 let authSession;
@@ -818,6 +826,18 @@ async function restoreCurrentPayment() {
 }
 
 byId("payment-form").addEventListener("submit", requestPayment);
+byId("checkout-borrow-review").addEventListener("click", () => void reviewTroveOpen());
+byId("checkout-borrow-collateral").addEventListener("input", () => {
+  checkoutBorrowQuote = undefined;
+  byId("checkout-borrow-review-result").classList.add("hidden");
+  byId("checkout-borrow-ack").checked = false;
+  byId("checkout-borrow-ack-wrap").classList.add("hidden");
+  byId("checkout-borrow-confirm").classList.add("hidden");
+});
+byId("checkout-borrow-ack").addEventListener("change", (event) => {
+  byId("checkout-borrow-confirm").disabled = !event.currentTarget.checked || !checkoutBorrowQuote;
+});
+byId("checkout-borrow-confirm").addEventListener("click", () => void confirmTroveOpen());
 byId("refresh-audit").addEventListener("click", () => loadAudit().catch((error) => toast(error.message, "error")));
 
 function setView(view) {
@@ -1291,6 +1311,8 @@ async function loadCheckoutPage() {
     const status = byId("checkout-state-tag");
     status.textContent = checkoutInvoice.status === "paid"
       ? "PAYMENT CONFIRMED"
+      : checkoutInvoice.status === "authorized"
+        ? "PAYMENT RESERVED"
       : checkoutInvoice.status === "expired"
         ? "INVOICE EXPIRED"
         : checkoutInvoice.status === "failed"
@@ -1299,7 +1321,11 @@ async function loadCheckoutPage() {
             ? "VERIFYING PAYMENT"
             : "AWAITING PAYMENT";
     status.className = `verified-tag checkout-status ${checkoutInvoice.status === "paid" ? "success" : checkoutInvoice.status === "failed" || checkoutInvoice.status === "expired" ? "danger" : ""}`;
-    if (checkoutInvoice.status !== "open") {
+    if (checkoutInvoice.status === "authorized") {
+      byId("checkout-wallet-state").textContent =
+        "This invoice has an unsubmitted payment authorization. Continue with the same wallet that started checkout; the invoice will be released if you reject the wallet request.";
+      byId("connect-pay-button").textContent = "Connect wallet & continue";
+    } else if (checkoutInvoice.status !== "open") {
       byId("checkout-wallet-state").textContent = checkoutInvoice.status === "paid"
         ? "This invoice has been paid and verified."
         : checkoutInvoice.status === "submitted"
@@ -1316,7 +1342,9 @@ async function loadCheckoutPage() {
           : checkoutInvoice.status === "expired"
             ? "Invoice expired"
             : "Payment unavailable";
-      byId("checkout-qr").parentElement.classList.add("hidden");
+      if (checkoutInvoice.status !== "authorized") {
+        byId("checkout-qr").parentElement.classList.add("hidden");
+      }
       if (checkoutInvoice.status === "paid") {
         setCheckoutMessage("Payment confirmed on Mezo.", "success-message");
         byId("checkout-result").classList.remove("hidden");
@@ -1325,7 +1353,7 @@ async function loadCheckoutPage() {
     byId("connect-pay-button").addEventListener("click", () => {
       if (checkoutInvoice.status === "submitted") {
         void pollCheckoutInvoice();
-      } else if (checkoutInvoice.status === "open") {
+      } else if (checkoutInvoice.status === "open" || checkoutInvoice.status === "authorized") {
         void payCheckout();
       }
     });
@@ -1368,12 +1396,193 @@ async function ensureMezoWallet(provider) {
       }]
     });
   }
+  const switchedChainId = await provider.request({ method: "eth_chainId" });
+  if (String(switchedChainId).toLowerCase() !== "0x7b7b") {
+    throw new Error("Your wallet is not connected to Mezo Testnet. No transaction was submitted.");
+  }
 }
 
 function setCheckoutMessage(message, kind = "notice") {
   const target = byId("checkout-result");
   target.className = kind;
   target.textContent = message;
+}
+
+function formatBtcAtomic(value, digits = 8) {
+  return formatDisplayAtomic(value, digits);
+}
+
+function showCheckoutPreflight(preflight) {
+  const panel = byId("checkout-preflight");
+  panel.replaceChildren();
+  for (const line of [
+    `Wallet MUSD: ${formatAtomic(preflight.musdBalanceAtomic)} · invoice: ${formatAtomic(preflight.requiredMusdAtomic)}`,
+    `Wallet BTC: ${formatBtcAtomic(preflight.nativeBalanceAtomic)} for Mezo gas`
+  ]) {
+    const item = document.createElement("div");
+    item.textContent = line;
+    panel.append(item);
+  }
+  if (preflight.transferGasAtomic) {
+    const gas = BigInt(preflight.transferGas) * BigInt(preflight.transferGasAtomic);
+    const item = document.createElement("div");
+    item.textContent = `Estimated transfer gas: ${formatBtcAtomic(gas, 18)} BTC`;
+    panel.append(item);
+  }
+  panel.classList.remove("hidden");
+}
+
+function setBorrowStatus(message, kind = "") {
+  const status = byId("checkout-borrow-status");
+  status.className = `checkout-borrow-status${kind ? ` ${kind}` : ""}`;
+  status.textContent = message;
+}
+
+function renderBorrowQuote(quote) {
+  const summary = byId("checkout-borrow-review-result");
+  summary.replaceChildren();
+  const rateBps = BigInt(quote.interestRateBps);
+  const annualRate = `${rateBps / 100n}.${(rateBps % 100n).toString().padStart(2, "0")}`;
+  const rows = [
+    ["Borrowed to wallet", `${formatAtomic(quote.principalAtomic)} MUSD`],
+    ["Current borrowing fee", `${formatAtomic(quote.borrowingFeeAtomic)} MUSD`],
+    ["Gas compensation added to debt", `${formatAtomic(quote.gasCompensationAtomic)} MUSD`],
+    ["Estimated opening debt", `${formatAtomic(quote.compositeDebtAtomic)} MUSD`],
+    ["Current fixed simple interest rate", `${annualRate}% per year`],
+    ["BTC collateral to lock", `${formatBtcAtomic(quote.collateralAtomic)} BTC`],
+    ["Estimated opening collateral ratio", `${formatDisplayAtomic(BigInt(quote.initialIcrAtomic) * 100n, 2)}%`],
+    ["Mezo BTC price at block", `$${formatDisplayAtomic(quote.priceAtomic, 2)}`],
+    ["Estimated gas cost", `${formatBtcAtomic(quote.estimatedGasCostAtomic, 18)} BTC`],
+    ["Quote block", quote.blockNumber],
+    ["Network", "Mezo Testnet · chain ID 31611"]
+  ];
+  for (const [label, value] of rows) {
+    const line = document.createElement("div");
+    line.append(document.createTextNode(`${label}: `));
+    const detail = document.createElement("strong");
+    detail.textContent = value;
+    line.append(detail);
+    summary.append(line);
+  }
+  const note = document.createElement("p");
+  note.textContent = "This creates a trove; it does not pay the invoice. The 200% target is RelayGuard’s conservative UI buffer, not a Mezo parameter. The minimum borrow may exceed the invoice; unused MUSD stays in your wallet. Price and transaction checks can change before confirmation.";
+  summary.append(note);
+  summary.classList.remove("hidden");
+  byId("checkout-borrow-ack").checked = false;
+  byId("checkout-borrow-ack-wrap").classList.remove("hidden");
+  byId("checkout-borrow-confirm").classList.remove("hidden");
+  byId("checkout-borrow-confirm").disabled = true;
+  checkoutBorrowQuote = quote;
+}
+
+function parseBtcAmount(value) {
+  const match = /^(0|[1-9]\d*)(?:\.(\d{1,18}))?$/.exec(value.trim());
+  if (!match) throw new Error("Enter a positive BTC amount with no more than 18 decimal places.");
+  const atomic = BigInt(match[1]) * 10n ** 18n +
+    BigInt((match[2] ?? "").padEnd(18, "0") || "0");
+  if (atomic <= 0n) throw new Error("Collateral amount must be greater than zero.");
+  return atomic;
+}
+
+async function prepareBorrowOption(provider, account, preflight) {
+  byId("checkout-borrow-panel").classList.remove("hidden");
+  byId("checkout-borrow-form").classList.add("hidden");
+  byId("checkout-borrow-review-result").classList.add("hidden");
+  byId("checkout-borrow-ack-wrap").classList.add("hidden");
+  byId("checkout-borrow-confirm").classList.add("hidden");
+  checkoutBorrowQuote = undefined;
+  setBorrowStatus("Checking current Mezo Testnet trove and BorrowerOperations terms…");
+  try {
+    const terms = await getMezoTroveOpeningTerms(provider, account);
+    if (terms.troveStatus === "active") {
+      setBorrowStatus("This wallet already has an active trove. Opening another one is not allowed. Manage or adjust the existing position in Mezo’s official app; adding collateral alone does not provide MUSD for this invoice.");
+      return;
+    }
+    const shortfall = BigInt(preflight.requiredMusdAtomic) - BigInt(preflight.musdBalanceAtomic);
+    if (BigInt(terms.principalAtomic) < shortfall) {
+      setBorrowStatus(
+        `This deployment’s minimum borrow of ${formatAtomic(terms.principalAtomic)} MUSD would not cover the ${formatAtomic(shortfall)} MUSD shortfall. No trove-opening option is offered; use another MUSD source or ask the merchant about the invoice amount.`
+      );
+      return;
+    }
+    byId("checkout-borrow-form").classList.remove("hidden");
+    byId("checkout-borrow-collateral").value = terms.minimumCollateral;
+    byId("checkout-borrow-minimum").textContent =
+      `Current estimate: at least ${formatBtcAtomic(terms.minimumCollateralAtomic)} BTC to meet RelayGuard’s 200% opening buffer. PriceFeed block ${terms.blockNumber}; price and fees can change.`;
+    setBorrowStatus(
+      `This deployment requires at least ${formatAtomic(terms.principalAtomic)} MUSD borrowed. The live fee, fixed interest rate, collateral ratio, and gas estimate will be shown before wallet confirmation.`
+    );
+  } catch (error) {
+    setBorrowStatus(`Could not verify a safe testnet borrow quote: ${error.message} No transaction was submitted.`, "error");
+  }
+}
+
+async function reviewTroveOpen() {
+  const provider = window.ethereum;
+  if (!provider || !checkoutWallet) {
+    setBorrowStatus("Reconnect your EVM wallet and retry the quote.", "error");
+    return;
+  }
+  const button = byId("checkout-borrow-review");
+  button.disabled = true;
+  byId("checkout-borrow-review-result").classList.add("hidden");
+  byId("checkout-borrow-ack-wrap").classList.add("hidden");
+  byId("checkout-borrow-confirm").classList.add("hidden");
+  try {
+    const quote = await quoteMezoTroveOpen(
+      provider,
+      checkoutWallet,
+      parseBtcAmount(byId("checkout-borrow-collateral").value)
+    );
+    renderBorrowQuote(quote);
+    setBorrowStatus("Review every amount and risk note below. The wallet transaction is a separate confirmation; invoice payment is never automatic.");
+  } catch (error) {
+    checkoutBorrowQuote = undefined;
+    setBorrowStatus(`${error.message} No transaction was submitted.`, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function confirmTroveOpen() {
+  const provider = window.ethereum;
+  const quote = checkoutBorrowQuote;
+  if (!provider || !checkoutWallet || !quote || !byId("checkout-borrow-ack").checked) return;
+  const button = byId("checkout-borrow-confirm");
+  button.disabled = true;
+  byId("checkout-borrow-review").disabled = true;
+  try {
+    const result = await openMezoTestnetTrove(
+      provider,
+      checkoutWallet,
+      quote,
+      checkoutInvoice.amountAtomic,
+      (message) => setBorrowStatus(message)
+    );
+    const balance = BigInt(result.musdBalanceAtomic);
+    const required = BigInt(checkoutInvoice.amountAtomic);
+    setBorrowStatus(
+      `Trove confirmed. Wallet now has ${formatAtomic(result.musdBalanceAtomic)} MUSD; this invoice requires ${formatAtomic(checkoutInvoice.amountAtomic)} MUSD. The invoice is still unpaid. Continue only by separately selecting the payment button.`,
+      "success"
+    );
+    const link = document.createElement("a");
+    link.href = `https://explorer.test.mezo.org/tx/${result.hash}`;
+    link.target = "_blank";
+    link.rel = "noreferrer noopener";
+    link.textContent = `View confirmed borrow transaction ${shortAddress(result.hash)}`;
+    byId("checkout-borrow-status").append(document.createElement("br"), link);
+    byId("connect-pay-button").textContent = balance >= required
+      ? "Check balance & continue to payment"
+      : "Check balance again";
+    byId("connect-pay-button").disabled = false;
+    byId("checkout-borrow-form").classList.add("hidden");
+    byId("checkout-borrow-ack-wrap").classList.add("hidden");
+    button.classList.add("hidden");
+  } catch (error) {
+    setBorrowStatus(`${error.message} Do not retry if the wallet already submitted a transaction; check its status first.`, "error");
+    button.disabled = false;
+    byId("checkout-borrow-review").disabled = false;
+  }
 }
 
 function markCheckoutPaid(transactionHash) {
@@ -1463,13 +1672,39 @@ async function payCheckout() {
     const accounts = await provider.request({ method: "eth_requestAccounts" });
     checkoutWallet = accounts[0];
     if (!checkoutWallet) throw new Error("Wallet did not return an account.");
-    byId("checkout-wallet-state").textContent = `Connected ${shortAddress(checkoutWallet)} · requesting exact MUSD payment authorization…`;
+    const token = await api("/api/merchant");
+    if (typeof token.body.tokenAddress !== "string" ||
+        token.body.tokenAddress.toLowerCase() !== MEZO_TESTNET_MUSD.toLowerCase()) {
+      throw new Error("Checkout MUSD contract does not match the verified Mezo Testnet token. No transaction was submitted.");
+    }
+    const preflight = await inspectMezoCheckoutWallet(
+      provider,
+      checkoutWallet,
+      checkoutInvoice.merchantAddress,
+      checkoutInvoice.amountAtomic
+    );
+    showCheckoutPreflight(preflight);
+    if (!preflight.sufficientMusd) {
+      const shortfall = BigInt(preflight.requiredMusdAtomic) - BigInt(preflight.musdBalanceAtomic);
+      byId("checkout-wallet-state").textContent =
+        `Connected ${shortAddress(checkoutWallet)}. You are short ${formatAtomic(shortfall)} MUSD. No payment authorization or transaction was created.`;
+      await prepareBorrowOption(provider, checkoutWallet, preflight);
+      return;
+    }
+    byId("checkout-borrow-panel").classList.add("hidden");
+    if (!preflight.sufficientGas) {
+      const gas = BigInt(preflight.transferGas) * BigInt(preflight.transferGasAtomic);
+      byId("checkout-wallet-state").textContent =
+        `Your MUSD balance covers the invoice, but your BTC balance is below the estimated transfer gas cost (${formatBtcAtomic(gas, 18)} BTC). Add testnet BTC and retry; no payment authorization was created.`;
+      return;
+    }
+    byId("checkout-wallet-state").textContent = `Connected ${shortAddress(checkoutWallet)} · MUSD balance and estimated BTC gas checked. Requesting exact payment authorization…`;
     const { body: authorizedBody } = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/authorize`, {
       method: "POST",
       body: JSON.stringify({ payerAddress: checkoutWallet })
     });
+    checkoutInvoice = authorizedBody.invoice;
     checkoutAuthorization = authorizedBody.authorization;
-    const token = await api("/api/merchant");
     const amountHex = BigInt(checkoutInvoice.amountAtomic).toString(16).padStart(64, "0");
     const addressHex = checkoutInvoice.merchantAddress.slice(2).toLowerCase().padStart(64, "0");
     const data = `0xa9059cbb${addressHex}${amountHex}`;
@@ -1548,7 +1783,7 @@ async function payCheckout() {
     setCheckoutMessage(message, "notice");
     byId("checkout-result").classList.remove("hidden");
   } finally {
-    button.disabled = checkoutInvoice?.status !== "open";
+    button.disabled = !["open", "authorized"].includes(checkoutInvoice?.status);
   }
 }
 

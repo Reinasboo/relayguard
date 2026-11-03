@@ -64,7 +64,7 @@ RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and p
 
 150% is RelayGuard's review buffer; 110% is Mezo's minimum. These operator controls never open a trove or borrow/add collateral.
 
-**Status:** deployed; 38 local tests pass. Production health and the healthy trove display are verified. Controlled live testing of the review/block thresholds remains outstanding.
+**Status:** deployed policy; 45 automated tests pass, including controlled threshold and RPC-failure cases. The new buyer checkout preflight and optional Testnet trove-opening flow are implemented but not yet manually wallet-tested; no borrow transaction was broadcast for this feature.
 
 ---
 
@@ -75,7 +75,7 @@ RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and p
 - The hash-linked audit chain commits the policy and evidence digests; tampered stored evidence fails verification.
 - Approval and execution stop if the risk tier changes. Operators can cancel stale requests; reviewers may still reject them.
 
-The policy uses the operator's trove as a spending signal; it does not open or modify that trove. Production health confirms a healthy state, while controlled review/block/RPC-failure tests remain outstanding.
+The policy uses the operator's trove as a spending signal; it does not open or modify that trove. Separately, an underfunded buyer may opt into a Testnet-only, wallet-confirmed trove-opening flow. Borrowing and invoice payment require separate reviews and transactions; production wallet testing remains outstanding.
 
 ---
 
@@ -98,7 +98,7 @@ The policy uses the operator's trove as a spending signal; it does not open or m
 - **1.00 MUSD invoice:** settled to the configured merchant and verified against the exact token transfer.
 - **0.001 MUSD x402 resource:** facilitator settlement was verified; the protected resource was returned.
 - Both historical payments reached the same merchant receiver.
-- **38 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
+- **45 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
 
 Full transaction references and test limitations: [test results](./TEST_RESULTS.md). These are testnet results, not mainnet production evidence.
 

@@ -462,7 +462,6 @@ function renderTransaction(record, details = {}) {
 async function loadHealth() {
   try {
     const { body } = await api("/api/health");
-    walletState = body;
     byId("network-label").textContent = body.network;
     byId("network-status").textContent = "CONNECTED";
     byId("network-status").className = "status-pill success";
@@ -470,12 +469,12 @@ async function loadHealth() {
     byId("chain-id").textContent = String(body.chainId);
     byId("block-number").textContent = body.blockNumber;
 
-    const accessToken = authSession?.access_token;
-    if (!accessToken) {
-      clearHealthDetails("Sign in to view protected wallet and policy details.");
-      return;
-    }
+    const { body: snapshot } = await api("/api/health/console");
+    walletState = { ...body, ...snapshot };
+    renderHealthDetails(snapshot);
 
+    const accessToken = authSession?.access_token;
+    if (!accessToken) return;
     try {
       const { body: details } = await api("/api/health/details");
       if (authSession?.access_token !== accessToken) return;
@@ -483,7 +482,10 @@ async function loadHealth() {
       renderHealthDetails(details);
     } catch (error) {
       if (authSession?.access_token !== accessToken) return;
-      clearHealthDetails("Protected wallet and policy details are unavailable.");
+      const notice = byId("setup-notice");
+      notice.classList.remove("hidden");
+      notice.textContent = "Read-only operator status is shown. Protected payment controls and policy details could not be loaded.";
+      byId("request-button").disabled = true;
       console.error("Protected Mezo health details could not be loaded:", error);
     }
   } catch (error) {
@@ -497,39 +499,13 @@ async function loadHealth() {
   }
 }
 
-function clearHealthDetails(message) {
-  walletState = undefined;
-  byId("native-balance").textContent = "Sign-in required";
-  byId("wallet-address").textContent = "Protected operator details";
-  byId("wallet-address").removeAttribute("title");
-  byId("musd-card").classList.add("hidden");
-  byId("musd-balance").textContent = "— MUSD";
-  byId("musd-contract").textContent = "Verified testnet token contract";
-  byId("asset").querySelector('option[value="MUSD"]')?.remove();
-  byId("asset").value = "BTC";
-  updateUnit();
-  byId("trove-status").textContent = "Protected details";
-  byId("trove-status").className = "status-pill muted";
-  byId("trove-icr").textContent = "—";
-  byId("trove-collateral").textContent = "—";
-  byId("trove-debt").textContent = "—";
-  byId("trove-policy").textContent = message;
-
-  const recipientSelect = byId("recipient");
-  recipientSelect.replaceChildren(new Option("Sign in to load approved destinations", ""));
-  byId("request-button").disabled = true;
-  const notice = byId("setup-notice");
-  notice.classList.remove("hidden");
-  notice.textContent = message;
-}
-
 function renderHealthDetails(body) {
-  byId("native-balance").innerHTML = "";
-  byId("native-balance").append(document.createTextNode(Number(body.nativeBalance).toFixed(6)));
+  const nativeBalance = byId("native-balance");
+  nativeBalance.replaceChildren(document.createTextNode(Number(body.nativeBalance).toFixed(6)));
   const unit = document.createElement("small");
   unit.textContent = ` ${body.nativeAsset}`;
-  byId("native-balance").append(unit);
-  byId("wallet-address").textContent = `${shortAddress(body.wallet)} · signer ready`;
+  nativeBalance.append(unit);
+  byId("wallet-address").textContent = `${shortAddress(body.wallet)} · operator signer`;
   byId("wallet-address").title = body.wallet;
   if (body.musd) {
     const amount = BigInt(body.musd.balanceAtomic);
@@ -537,19 +513,24 @@ function renderHealthDetails(body) {
     const divisor = 10n ** decimals;
     const whole = amount / divisor;
     const fraction = (amount % divisor).toString().padStart(Number(decimals), "0").slice(0, 6);
-    byId("musd-balance").textContent = `${whole}.${fraction}`;
+    const balance = byId("musd-balance");
+    balance.replaceChildren(document.createTextNode(`${whole}.${fraction}`));
     const musdUnit = document.createElement("small");
     musdUnit.textContent = " MUSD";
-    byId("musd-balance").append(musdUnit);
+    balance.append(musdUnit);
     byId("musd-contract").textContent = shortAddress(body.musd.address);
     byId("musd-contract").title = body.musd.address;
     byId("musd-card").classList.remove("hidden");
+  } else {
+    byId("musd-card").classList.add("hidden");
+    byId("musd-balance").textContent = "— MUSD";
+    byId("musd-contract").textContent = "Verified testnet token contract";
   }
   renderTroveHealth(body.trove);
 
   const recipientSelect = byId("recipient");
   recipientSelect.replaceChildren();
-  if (body.policy.configuredRecipients.length) {
+  if (body.policy?.configuredRecipients?.length) {
     for (const recipient of body.policy.configuredRecipients) {
       const option = document.createElement("option");
       option.value = recipient;
@@ -560,11 +541,17 @@ function renderHealthDetails(body) {
     byId("request-button").disabled = false;
     byId("setup-notice").classList.add("hidden");
   } else {
-    recipientSelect.append(new Option("No destinations configured", ""));
+    const signedIn = Boolean(authSession?.access_token);
+    recipientSelect.append(new Option(
+      signedIn ? "No destinations configured" : "Sign in to load approved destinations",
+      ""
+    ));
     byId("request-button").disabled = true;
     const notice = byId("setup-notice");
     notice.classList.remove("hidden");
-    notice.textContent = "Payments are paused until an approved recipient is configured.";
+    notice.textContent = signedIn
+      ? "Payments are paused until an approved recipient is configured."
+      : "Read-only public status. Sign in to view protected spending configuration and recipient settings and use payment controls.";
   }
 
   function renderTroveHealth(trove) {
@@ -623,7 +610,9 @@ function renderHealthDetails(body) {
     byId("amount-unit").textContent = "BTC";
     const notice = byId("setup-notice");
     notice.classList.remove("hidden");
-    notice.textContent = "MUSD payments are temporarily unavailable.";
+    notice.textContent = body.policy
+      ? "MUSD payments are temporarily unavailable."
+      : "MUSD status is unavailable; this public dashboard is read-only. Sign in for payment controls.";
     byId("request-button").disabled = true;
   }
 }
@@ -692,6 +681,12 @@ async function loadAudit() {
 
 async function requestPayment(event) {
   event.preventDefault();
+  if (!authSession?.access_token) {
+    const notice = byId("setup-notice");
+    notice.classList.remove("hidden");
+    notice.textContent = "Sign in to use payment controls. The public operator dashboard is read-only.";
+    return;
+  }
   const button = byId("request-button");
   button.disabled = true;
   try {

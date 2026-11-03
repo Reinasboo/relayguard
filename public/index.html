@@ -35,6 +35,14 @@
         </header>
 
         <div id="console-view">
+        <aside class="operator-notice" aria-label="Operator console access">
+          <span class="operator-notice-mark" aria-hidden="true">i</span>
+          <div class="operator-notice-copy">
+            <strong>Operator-configured wallet · read-only public status</strong>
+            <span>Balances and trove health below belong to RelayGuard’s configured operator signer—not your wallet or merchant account. Sign in for payment controls; use the <a href="/" data-view="merchant">multi-tenant merchant workspace <span aria-hidden="true">→</span></a> for your own verified payout wallet and invoices.</span>
+          </div>
+          <span class="operator-notice-tag">MEZO TESTNET</span>
+        </aside>
         <section class="intro">
           <div>
             <div class="eyebrow">PAYMENT OPERATIONS</div>
@@ -275,7 +283,7 @@
           <section class="faq-library" aria-labelledby="faq-library-title">
             <div class="faq-library-heading">
               <div><div class="eyebrow">THE SHORT ANSWERS</div><h2 id="faq-library-title">Explore the details</h2></div>
-              <span id="faq-result-count" class="faq-result-count">10 answers</span>
+              <span id="faq-result-count" class="faq-result-count">13 answers</span>
             </div>
             <div class="faq-layout">
               <nav class="faq-categories" aria-label="Filter FAQs by topic">
@@ -346,6 +354,24 @@
                   <details>
                     <summary><span class="faq-q-number">10</span><span class="faq-question">Is RelayGuard production-ready for mainnet?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
                     <div class="faq-answer"><p>RelayGuard is currently a Mezo Testnet demo (chain ID 31611), not a mainnet payment service. Testnet invoice and x402 settlements have been verified. Controlled live testing of policy thresholds, a fresh production QR checkout, and operational hardening remain outstanding. Do not send mainnet funds to this demo.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="payments">
+                  <details>
+                    <summary><span class="faq-q-number">11</span><span class="faq-question">Whose wallet balance and trove do I see in the payment workspace?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>These are the balances and trove for RelayGuard’s operator-configured signer. They are not your connected wallet, your signed-in account, or a merchant’s payout wallet. The status dashboard is public and read-only; payment controls require sign-in.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="payments">
+                  <details>
+                    <summary><span class="faq-q-number">12</span><span class="faq-question">Can my business use its own wallet and checkout?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>Yes. The merchant workspace is multi-tenant: each signed-in merchant can verify its own receiving wallet and create invoices that pay that wallet directly. Merchant profiles, invoice history, and x402 resources are scoped to the merchant account; the operator balance shown on this payment dashboard is separate.</p></div>
+                  </details>
+                </article>
+                <article class="faq-item" data-faq-category="trust">
+                  <details>
+                    <summary><span class="faq-q-number">13</span><span class="faq-question">What can I do here without signing in?</span><span class="faq-toggle" aria-hidden="true"></span></summary>
+                    <div class="faq-answer"><p>Anyone can inspect the operator signer’s public Mezo Testnet balance and trove status. Creating payment requests, viewing protected spending limits and recipient settings, and approving or executing payments require an authenticated account. The separate merchant checkout flow remains available to buyers without a RelayGuard sign-in.</p></div>
                   </details>
                 </article>
                 <div class="faq-no-results hidden" id="faq-no-results"><span>⌕</span><strong>No matching answers</strong><p>Try a different search or choose another topic.</p><button class="button button-quiet" id="faq-clear-search" type="button">Clear filters</button></div>

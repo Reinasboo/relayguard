@@ -40,6 +40,14 @@ button { cursor: pointer; }
 .crumb { color: #7f8b98; font-size: 12px; }
 .crumb span { padding: 0 8px; color: #45515c; }
 .network-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #30402b; border-radius: 30px; color: #d1e9bb; background: #182019; font: 11px "DM Mono", monospace; }
+.operator-notice { display: flex; align-items: center; gap: 13px; margin-top: 21px; padding: 12px 15px; border: 1px solid #334333; border-radius: 9px; background: linear-gradient(105deg, rgba(28,43,32,.92), rgba(17,26,27,.94)); }
+.operator-notice-mark { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border: 1px solid #58733d; border-radius: 50%; color: var(--green); font: 600 12px "DM Mono", monospace; }
+.operator-notice-copy { display: grid; min-width: 0; gap: 3px; }
+.operator-notice-copy strong { color: #e0edda; font-size: 11px; font-weight: 600; }
+.operator-notice-copy > span { color: #a4b0aa; font-size: 10px; line-height: 1.55; }
+.operator-notice-copy a { color: var(--green); text-decoration: none; white-space: nowrap; }
+.operator-notice-copy a:hover { text-decoration: underline; }
+.operator-notice-tag { margin-left: auto; color: #a3bc91; font: 9px "DM Mono", monospace; letter-spacing: .8px; white-space: nowrap; }
 .intro { display: flex; align-items: flex-end; justify-content: space-between; padding: 38px 0 27px; }
 .intro .eyebrow { color: var(--green); }
 h1, h2 { font-family: "Space Grotesk", sans-serif; letter-spacing: -.7px; }
@@ -853,6 +861,8 @@ details[open] .faq-toggle::after { transform: rotate(0); }
   .topbar { height: 52px; }
   .crumb { font-size: 10px; }
   .network-chip { padding: 6px 8px; font-size: 9px; }
+  .operator-notice { align-items: flex-start; margin-top: 13px; padding: 11px; }
+  .operator-notice-tag { display: none; }
   .intro { display: block; padding: 27px 0 20px; }
   .intro-tag { margin-top: 15px; }
   .stats { grid-template-columns: 1fr; gap: 8px; }

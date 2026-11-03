@@ -289,6 +289,72 @@ function requestOrigin(req: IncomingMessage): string {
   return new URL(`${protocol}://${host}`).origin;
 }
 
+async function readOperatorHealthSnapshot() {
+  const chainId = await publicClient.getChainId();
+  if (chainId !== mezoTestnet.id) {
+    return {
+      error: `RPC chain ID mismatch: expected ${mezoTestnet.id}, received ${chainId}.`,
+      chainId
+    };
+  }
+
+  const [blockNumber, balance] = await Promise.all([
+    publicClient.getBlockNumber(),
+    publicClient.getBalance({ address: signerAddress })
+  ]);
+  let musd: { address: string; balanceAtomic: string; decimals: number } | null = null;
+  let trove: MezoTroveHealth | { readonly status: "unavailable"; readonly observedAt: number } = {
+    status: "unavailable",
+    observedAt: Date.now()
+  };
+  try {
+    trove = await readMezoTroveHealth(publicClient, signerAddress);
+  } catch (error) {
+    console.error("Could not read Mezo trove health:", error);
+  }
+
+  const tokenAddress = process.env.MEZO_TOKEN_ADDRESS;
+  if (tokenAddress && isAddress(tokenAddress)) {
+    try {
+      const details = await assetDetails("MUSD");
+      if (details.tokenAddress) {
+        const tokenBalance = await publicClient.readContract({
+          address: details.tokenAddress,
+          abi: erc20ReadAbi,
+          functionName: "balanceOf",
+          args: [signerAddress]
+        });
+        musd = {
+          address: details.tokenAddress,
+          balanceAtomic: tokenBalance.toString(),
+          decimals: details.decimals
+        };
+      }
+    } catch (error) {
+      console.error("Could not read configured MUSD contract:", error);
+    }
+  }
+
+  return {
+    snapshot: {
+      status: "ready" as const,
+      network: mezoTestnet.name,
+      chainId,
+      blockNumber: blockNumber.toString(),
+      wallet: signerAddress,
+      nativeAsset: mezoTestnet.nativeCurrency.symbol,
+      nativeBalanceAtomic: balance.toString(),
+      nativeBalance: formatUnits(balance, mezoTestnet.nativeCurrency.decimals),
+      musd,
+      trove,
+      trovePolicy: {
+        minimumIcrAtomic: TROVE_MINIMUM_ICR.toString(),
+        reviewIcrAtomic: TROVE_REVIEW_ICR.toString()
+      }
+    }
+  };
+}
+
 async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   if (!localOriginAllowed(req)) {
     response(res, 403, { error: "Cross-origin requests are not allowed." });
@@ -350,6 +416,16 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/health/console") {
+    const result = await readOperatorHealthSnapshot();
+    if ("error" in result) {
+      response(res, 503, { error: result.error });
+      return;
+    }
+    response(res, 200, result.snapshot);
+    return;
+  }
+
   const operatorApi =
     url.pathname === "/api/health/details" ||
     url.pathname === "/api/audit" ||
@@ -366,63 +442,14 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   }
 
   if (req.method === "GET" && url.pathname === "/api/health/details") {
-    const [chainId, blockNumber, balance] = await Promise.all([
-      publicClient.getChainId(),
-      publicClient.getBlockNumber(),
-      publicClient.getBalance({ address: signerAddress })
-    ]);
-    if (chainId !== mezoTestnet.id) {
-      response(res, 503, { error: `RPC chain ID mismatch: expected ${mezoTestnet.id}, received ${chainId}.` });
+    const result = await readOperatorHealthSnapshot();
+    if ("error" in result) {
+      response(res, 503, { error: result.error });
       return;
     }
-    let musd: { address: string; balanceAtomic: string; decimals: number } | null = null;
-    let trove: MezoTroveHealth | { readonly status: "unavailable"; readonly observedAt: number } = {
-      status: "unavailable",
-      observedAt: Date.now()
-    };
-    try {
-      trove = await readMezoTroveHealth(publicClient, signerAddress);
-    } catch (error) {
-      console.error("Could not read Mezo trove health:", error);
-    }
-    const tokenAddress = process.env.MEZO_TOKEN_ADDRESS;
-    if (tokenAddress && isAddress(tokenAddress)) {
-      try {
-        const details = await assetDetails("MUSD");
-        if (details.tokenAddress) {
-          const tokenBalance = await publicClient.readContract({
-            address: details.tokenAddress,
-            abi: erc20ReadAbi,
-            functionName: "balanceOf",
-            args: [signerAddress]
-          });
-          musd = {
-            address: details.tokenAddress,
-            balanceAtomic: tokenBalance.toString(),
-            decimals: details.decimals
-          };
-        }
-      } catch (error) {
-        musd = null;
-        console.error("Could not read configured MUSD contract:", error);
-      }
-    }
     response(res, 200, {
-      status: "ready",
-      network: mezoTestnet.name,
-      chainId,
-      blockNumber: blockNumber.toString(),
+      ...result.snapshot,
       rpcUrl,
-      wallet: signerAddress,
-      nativeAsset: mezoTestnet.nativeCurrency.symbol,
-      nativeBalanceAtomic: balance.toString(),
-      nativeBalance: formatUnits(balance, mezoTestnet.nativeCurrency.decimals),
-      musd,
-      trove,
-      trovePolicy: {
-        minimumIcrAtomic: TROVE_MINIMUM_ICR.toString(),
-        reviewIcrAtomic: TROVE_REVIEW_ICR.toString()
-      },
       signingReady: Boolean(signerPrivateKey),
       policy: {
         configuredRecipients: allowedRecipients,

@@ -1,6 +1,12 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
-import type { AuthorizationRecord, AuthorizationStatus, PaymentIntent, SpendingPolicy } from "./domain.js";
+import type {
+  AuthorizationRecord,
+  AuthorizationStatus,
+  MezoTroveEvidence,
+  PaymentIntent,
+  SpendingPolicy
+} from "./domain.js";
 import { digest, evaluatePolicy, validatePolicy } from "./policy.js";
 import type { AuditEvent, RequestResult } from "./authorization.js";
 import type { CheckoutInvoice, CheckoutStatus } from "./checkout.js";
@@ -84,7 +90,11 @@ function decodeAuditEvent(row: QueryResultRow): AuditEvent {
     intentDigest: String(row.intent_digest),
     status: String(row.status) as AuthorizationStatus,
     previousHash: String(row.previous_hash),
-    hash: String(row.hash)
+    hash: String(row.hash),
+    ...(typeof row.policy_digest === "string" ? { policyDigest: row.policy_digest } : {}),
+    ...(typeof row.mezo_trove_evidence_digest === "string"
+      ? { mezoTroveEvidenceDigest: row.mezo_trove_evidence_digest }
+      : {})
   };
   if (
     !Number.isSafeInteger(event.sequence) ||
@@ -92,7 +102,10 @@ function decodeAuditEvent(row: QueryResultRow): AuditEvent {
     !isAuthorizationStatus(event.status) ||
     !/^[0-9a-f]{64}$/.test(event.intentDigest) ||
     !/^[0-9a-f]{64}$/.test(event.previousHash) ||
-    !/^[0-9a-f]{64}$/.test(event.hash)
+    !/^[0-9a-f]{64}$/.test(event.hash) ||
+    (event.policyDigest !== undefined && !/^[0-9a-f]{64}$/.test(event.policyDigest)) ||
+    (event.mezoTroveEvidenceDigest !== undefined &&
+      !/^[0-9a-f]{64}$/.test(event.mezoTroveEvidenceDigest))
   ) {
     throw new Error("Authorization database contains a malformed audit event.");
   }
@@ -156,7 +169,12 @@ export class PostgresAuthorizationService implements AuthorizationStore {
     return this.readyPromise;
   }
 
-  async request(intent: PaymentIntent, policy: SpendingPolicy, now = Date.now()): Promise<RequestResult> {
+  async request(
+    intent: PaymentIntent,
+    policy: SpendingPolicy,
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Promise<RequestResult> {
     if (!Number.isFinite(now)) throw new Error("Authorization timestamp must be a finite number.");
     return inTransaction(this.pool, async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [intent.agentId]);
@@ -210,6 +228,7 @@ export class PostgresAuthorizationService implements AuthorizationStore {
         policyId: policy.id,
         policyVersion: policy.version,
         policyDigest,
+        ...(mezoTroveEvidence === undefined ? {} : { mezoTroveEvidence: [mezoTroveEvidence] }),
         status,
         createdAt: now,
         updatedAt: now,
@@ -232,7 +251,14 @@ export class PostgresAuthorizationService implements AuthorizationStore {
     });
   }
 
-  async approve(recordId: string, approverId: string, challenge: string, currentPolicy: SpendingPolicy, now = Date.now()): Promise<AuthorizationRecord> {
+  async approve(
+    recordId: string,
+    approverId: string,
+    challenge: string,
+    currentPolicy: SpendingPolicy,
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Promise<AuthorizationRecord> {
     if (!Number.isFinite(now)) throw new Error("Authorization timestamp must be a finite number.");
     const result = await inTransaction(this.pool, async (client) => {
       const record = await this.requireRecord(recordId, client, true);
@@ -247,7 +273,17 @@ export class PostgresAuthorizationService implements AuthorizationStore {
       if (typeof expectedHash !== "string" || !safeEqualHex(expectedHash, approvalTokenHash(challenge))) {
         throw new Error("Approval challenge is invalid.");
       }
-      return { record: await this.transition(record, "authorized", now, client) };
+      return {
+        record: await this.transition(
+          record,
+          "authorized",
+          now,
+          client,
+          undefined,
+          undefined,
+          mezoTroveEvidence
+        )
+      };
     });
     if ("expired" in result) throw new Error("Approval challenge has expired.");
     return result.record;
@@ -259,8 +295,8 @@ export class PostgresAuthorizationService implements AuthorizationStore {
       const record = await this.requireRecord(recordId, client, true);
       if (await this.expireIfNecessary(record, now, client)) return { expired: true as const };
       if (record.status !== "awaiting_approval") throw new Error(`Approval is not available in state '${record.status}'.`);
-      if (!validatePolicy(currentPolicy) || digest(currentPolicy) !== record.policyDigest || !currentPolicy.approverIds.includes(approverId)) {
-        throw new Error("Approver or policy is not valid for this approval.");
+      if (!validatePolicy(currentPolicy) || !currentPolicy.approverIds.includes(approverId)) {
+        throw new Error("Approver is not authorized by the current policy.");
       }
       return { record: await this.transition(record, "denied", now, client, "human_rejected") };
     });
@@ -268,8 +304,12 @@ export class PostgresAuthorizationService implements AuthorizationStore {
     return result.record;
   }
 
-  markExecuting(recordId: string, now = Date.now()): Promise<AuthorizationRecord> {
-    return this.transitionById(recordId, "executing", now);
+  markExecuting(
+    recordId: string,
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Promise<AuthorizationRecord> {
+    return this.transitionById(recordId, "executing", now, undefined, undefined, mezoTroveEvidence);
   }
 
   markSubmitted(recordId: string, now = Date.now(), reference?: string): Promise<AuthorizationRecord> {
@@ -316,6 +356,28 @@ export class PostgresAuthorizationService implements AuthorizationStore {
       if (event.previousHash !== previousHash || digest(unsigned) !== hash) return false;
       previousHash = event.hash;
     }
+    const linkedEvents = events.filter(
+      (event) => event.policyDigest !== undefined || event.mezoTroveEvidenceDigest !== undefined
+    );
+    if (linkedEvents.length) {
+      const recordsResult = await this.pool.query(
+        "SELECT id, record_json FROM public.relayguard_authorizations WHERE id = ANY($1::uuid[])",
+        [Array.from(new Set(linkedEvents.map((event) => event.recordId)))]
+      );
+      const records = new Map(
+        recordsResult.rows.map((row) => [String(row.id), decodeRecord(row.record_json)])
+      );
+      for (const event of linkedEvents) {
+        const record = records.get(event.recordId);
+        if (!record || record.policyDigest !== event.policyDigest) return false;
+        if (
+          event.mezoTroveEvidenceDigest !== undefined &&
+          !record.mezoTroveEvidence?.some((evidence) => digest(evidence) === event.mezoTroveEvidenceDigest)
+        ) {
+          return false;
+        }
+      }
+    }
     const head = await this.pool.query("SELECT sequence, hash FROM public.relayguard_audit_head WHERE id = true");
     if (head.rowCount !== 1) return false;
     return Number(head.rows[0].sequence) === events.length && String(head.rows[0].hash) === previousHash;
@@ -325,11 +387,18 @@ export class PostgresAuthorizationService implements AuthorizationStore {
     return this.pool.end();
   }
 
-  private async transitionById(recordId: string, nextStatus: AuthorizationStatus, now: number, reason?: string, reference?: string): Promise<AuthorizationRecord> {
+  private async transitionById(
+    recordId: string,
+    nextStatus: AuthorizationStatus,
+    now: number,
+    reason?: string,
+    reference?: string,
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Promise<AuthorizationRecord> {
     if (!Number.isFinite(now)) throw new Error("Authorization timestamp must be a finite number.");
     return inTransaction(this.pool, async (client) => {
       const record = await this.requireRecord(recordId, client, true);
-      return this.transition(record, nextStatus, now, client, reason, reference);
+      return this.transition(record, nextStatus, now, client, reason, reference, mezoTroveEvidence);
     });
   }
 
@@ -339,7 +408,8 @@ export class PostgresAuthorizationService implements AuthorizationStore {
     now: number,
     client: PoolClient,
     reason?: string,
-    reference?: string
+    reference?: string,
+    mezoTroveEvidence?: MezoTroveEvidence
   ): Promise<AuthorizationRecord> {
     if (!validTransition(previous.status, nextStatus)) {
       throw new Error(`Invalid authorization transition '${previous.status}' -> '${nextStatus}'.`);
@@ -348,6 +418,9 @@ export class PostgresAuthorizationService implements AuthorizationStore {
       ...previous,
       status: nextStatus,
       updatedAt: now,
+      ...(mezoTroveEvidence === undefined
+        ? {}
+        : { mezoTroveEvidence: [...(previous.mezoTroveEvidence ?? []), mezoTroveEvidence] }),
       ...(reason === undefined ? {} : { reason }),
       ...(reference === undefined ? {} : { transactionReference: reference })
     });
@@ -392,14 +465,30 @@ export class PostgresAuthorizationService implements AuthorizationStore {
       recordId: record.id,
       intentDigest: record.intentDigest,
       status: record.status,
-      previousHash
+      previousHash,
+      policyDigest: record.policyDigest,
+      ...(record.mezoTroveEvidence?.length
+        ? { mezoTroveEvidenceDigest: digest(record.mezoTroveEvidence.at(-1)) }
+        : {})
     };
     const hash = digest(unsigned);
     await client.query(
       `INSERT INTO public.relayguard_audit_events
-       (sequence, at, type, record_id, intent_digest, status, previous_hash, hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [sequence, at, type, record.id, record.intentDigest, record.status, previousHash, hash]
+       (sequence, at, type, record_id, intent_digest, status, previous_hash,
+        policy_digest, mezo_trove_evidence_digest, hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        sequence,
+        at,
+        type,
+        record.id,
+        record.intentDigest,
+        record.status,
+        previousHash,
+        record.policyDigest,
+        unsigned.mezoTroveEvidenceDigest ?? null,
+        hash
+      ]
     );
     await client.query("UPDATE public.relayguard_audit_head SET sequence = $1, hash = $2 WHERE id = true", [sequence, hash]);
   }

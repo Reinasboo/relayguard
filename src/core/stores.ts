@@ -5,6 +5,7 @@ import type {
 } from "./authorization.js";
 import type {
   AuthorizationRecord,
+  MezoTroveEvidence,
   PaymentIntent,
   SpendingPolicy
 } from "./domain.js";
@@ -12,13 +13,19 @@ import type {
 export type Awaitable<T> = T | Promise<T>;
 
 export interface AuthorizationStore {
-  request(intent: PaymentIntent, policy: SpendingPolicy, now?: number): Awaitable<RequestResult>;
+  request(
+    intent: PaymentIntent,
+    policy: SpendingPolicy,
+    now?: number,
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Awaitable<RequestResult>;
   approve(
     recordId: string,
     approverId: string,
     challenge: string,
     currentPolicy: SpendingPolicy,
-    now?: number
+    now?: number,
+    mezoTroveEvidence?: MezoTroveEvidence
   ): Awaitable<AuthorizationRecord>;
   reject(
     recordId: string,
@@ -26,7 +33,11 @@ export interface AuthorizationStore {
     currentPolicy: SpendingPolicy,
     now?: number
   ): Awaitable<AuthorizationRecord>;
-  markExecuting(recordId: string, now?: number): Awaitable<AuthorizationRecord>;
+  markExecuting(
+    recordId: string,
+    now?: number,
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): Awaitable<AuthorizationRecord>;
   markSubmitted(recordId: string, now?: number, reference?: string): Awaitable<AuthorizationRecord>;
   markConfirmed(recordId: string, now?: number): Awaitable<AuthorizationRecord>;
   markFailed(recordId: string, reason: string, now?: number): Awaitable<AuthorizationRecord>;

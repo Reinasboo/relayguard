@@ -41,45 +41,55 @@ QR checkout for people. x402 access for agents. A Mezo-native spending policy fo
 
 ## One merchant destination. Two ways to pay.
 
-<img src="./screens/03-merchant-checkout.svg" alt="RelayGuard MUSD merchant checkout" width="82%">
+<img src="./screens/03-merchant-checkout.svg" alt="RelayGuard MUSD merchant checkout" width="58%">
 
 *Illustrative product screen; not a captured live transaction.*
 
-- **People:** a fixed MUSD invoice, shareable checkout link, and QR; the buyer signs the exact transfer in their wallet.
-- **Agents:** an x402-protected resource with exact MUSD terms; the facilitator verifies and settles before the resource is unlocked.
-- Both flows route to the merchant's configured receiving wallet. Checkout funds are not held by RelayGuard.
+- **People:** shareable invoice and QR; buyer signs the exact MUSD transfer.
+- **Agents:** x402 exact terms; facilitator settles before API access.
+- Both pay the merchant directly; RelayGuard never holds checkout funds.
 
 ---
 
 ## The Wave 2 difference: policy reads Mezo trove health
 
-RelayGuard reads the configured operator's trove status, live Mezo `PriceFeed`, and protocol-computed `TroveManager.getCurrentICR`.
+RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and protocol-computed ICR.
 
 | Observed ICR | MUSD agent-payment decision |
 |---|---|
-| At least 150% | Apply configured transaction and daily limits |
-| 110% to below 150% | Require explicit human approval for every positive payment |
-| Below 110% | Block new authorization, approval, and execution |
-| Protocol read unavailable | Fail closed for MUSD; BTC policy remains separate |
+| At least 150% | Configured transaction and daily limits |
+| 110% to below 150% | Human approval for every positive payment |
+| Below 110% | Block authorization, approval, and execution |
+| Read unavailable | Fail closed for MUSD; BTC policy unchanged |
 
-These are operator treasury controls, not a requirement for buyers to open a trove. RelayGuard does not borrow, add collateral, or modify troves automatically.
+150% is RelayGuard's review buffer; 110% is Mezo's minimum. These operator controls never open a trove or borrow/add collateral.
 
-**Status:** implemented and covered by local tests; deployment of these Wave 2 controls and live threshold verification remain outstanding.
+**Status:** deployed; 38 local tests pass. Production health and the healthy trove display are verified. Controlled live testing of the review/block thresholds remains outstanding.
+
+---
+
+## Every policy decision is auditable
+
+- The PriceFeed, trove status, ICR, collateral, and debt reads use the same Mezo block.
+- Each authorization retains the borrower, price, risk tier, ICR, collateral, debt, block number, and observation time.
+- The hash-linked audit chain commits the policy and evidence digests; tampered stored evidence fails verification.
+- Approval and execution stop if the risk tier changes. Operators can cancel stale requests; reviewers may still reject them.
+
+The policy uses the operator's trove as a spending signal; it does not open or modify that trove. Production health confirms a healthy state, while controlled review/block/RPC-failure tests remain outstanding.
 
 ---
 
 ## Reliability is part of payment safety
 
-<img src="./screens/05-verified-settlement.svg" alt="RelayGuard verified settlement screen" width="82%">
+<img src="./screens/05-verified-settlement.svg" alt="RelayGuard verified settlement screen" width="42%">
 
 *Illustrative product screen; see the linked test evidence for actual settlement records.*
 
-- Invoice loads time out with a clear retry action instead of spinning indefinitely.
-- Submitted-payment verification is bounded to 20 automatic checks, then offers a manual retry.
-- The UI explicitly warns customers not to pay again while a transaction is still being verified.
-- If a policy-relevant trove risk tier changes after authorization, execution stops; the operator can cancel the stale authorization and request a fresh policy decision.
+- Invoice/receipt waits time out with retry; verification stops after 20 checks.
+- Payment-in-progress guidance discourages duplicate payment.
+- Changed trove risk blocks stale approval/execution; cancel and submit fresh.
 
-**Status:** implemented in the current working tree; deploy and production smoke-test before presenting it as live.
+**Status:** deployed; production failure-mode testing remains outstanding.
 
 ---
 
@@ -88,7 +98,7 @@ These are operator treasury controls, not a requirement for buyers to open a tro
 - **1.00 MUSD invoice:** settled to the configured merchant and verified against the exact token transfer.
 - **0.001 MUSD x402 resource:** facilitator settlement was verified; the protected resource was returned.
 - Both historical payments reached the same merchant receiver.
-- **35 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
+- **38 automated tests pass locally**, including protocol-risk boundaries, receipt verification, authorization lifecycle, and x402 typed-data signing.
 
 Full transaction references and test limitations: [test results](./TEST_RESULTS.md). These are testnet results, not mainnet production evidence.
 
@@ -109,11 +119,11 @@ These are planning assumptions, not current product charges. RelayGuard does not
 
 | Date | Milestone | Proof of completion |
 |---|---|---|
-| **Nov 10, 2026** | Deploy trove-aware policy and bounded checkout recovery | Live health read; test decisions above 150%, between 110–150%, below 110%, and RPC failure |
+| **Nov 10, 2026** | Complete controlled validation of deployed trove-aware policy | Record decisions above 150%, between 110–150%, below 110%, and on RPC failure without risking real-value funds |
 | **Nov 17, 2026** | Verify customer checkout end to end on a second device | Merchant login, invoice creation, QR scan, wallet signature, and confirmed receipt |
 | **Dec 1, 2026** | Run a small merchant/agent pilot | Interview 3 merchants; measure invoice completion, API unlocks, settlement time, and support issues |
 
-Dates and pilot targets are proposals and should be confirmed before external use.
+Dates and pilot targets are proposals and should be confirmed before external use. The Wave 2 policy is deployed; the November 10 milestone is validation, not deployment.
 
 ---
 

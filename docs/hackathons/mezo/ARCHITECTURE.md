@@ -27,7 +27,7 @@ RelayGuard combines a shared policy/audit core with merchant MUSD checkout, an x
 ## Operator flow
 
 1. An automation system proposes a Mezo payment request.
-2. For MUSD, RelayGuard reads the configured operator's trove status, live PriceFeed, and protocol ICR. It requires human approval below 150% ICR, blocks spending below the 110% minimum, and fails closed if the protocol read is unavailable.
+2. For MUSD, RelayGuard reads the configured operator's trove status, PriceFeed, and protocol ICR at one pinned block. It requires human approval below RelayGuard's 150% review buffer, blocks spending below Mezo's 110% minimum, and fails closed if protocol state is unavailable.
 3. RelayGuard validates recipient, amount, chain, asset, and spending policy.
 4. Required human approval triggers an approval challenge.
 5. The local Mezo signer explicitly submits the transaction.

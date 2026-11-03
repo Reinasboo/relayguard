@@ -16,14 +16,14 @@ Local development binds to loopback and stores invoice/authorization/audit data 
 
 Vercel CLI `65.2.0` is installed and authenticated, and the `relayguard` project is created, linked, and connected to the GitHub repository. `api/[...path].js` adapts the Express app to Vercel Functions; `vercel.json` routes shareable `/pay/` checkout links through the same API and serves the frontend from `public/`. Runtime persistence uses Supabase Postgres when `DATABASE_URL` is configured; otherwise Vercel startup fails closed. All 23 required production variable names are configured as hidden Vercel secrets.
 
-Both Supabase migrations are applied: merchant-authenticated invoice schema and runtime authorization/audit tables. The read-only live database smoke test passed for connectivity, invoice schema access, and the audit chain. The public app and core API smoke tests are live. The latest local changes pass `npm test` (35/35) and `npm run typecheck`; they still need a Vercel deployment and post-deploy verification.
+All three Supabase migrations are applied: merchant-authenticated invoice schema, runtime authorization/audit tables, and Mezo policy-evidence audit digests. The production Vercel deployment starts against hosted Postgres, and its health route reports the current block-pinned trove snapshot. The application passes `npm test` (38/38). A fresh production QR wallet settlement and controlled protocol-policy threshold checks remain outstanding.
 
 ## Supabase CLI, Auth, and database
 
 - Supabase CLI `2.122.0` runs through `npx supabase`; authentication is active and the linked `relayguard` project is healthy.
 - The Supabase email provider is enabled and local callback URLs (`127.0.0.1:4173` and `localhost:4173`) are allowlisted.
 - The publishable client key is local-only in `.env.app.local`. No service-role key is installed or used by browser code.
-- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices; `20261026010000_relayguard_runtime_storage.sql` adds durable authorization and audit data plus the Postgres invoice representation. Both migrations were successfully applied and verified.
+- `supabase/migrations/20261026000000_relayguard_checkout_auth.sql` defines RLS-protected merchant profiles and invoices; `20261026010000_relayguard_runtime_storage.sql` adds durable authorization and audit data plus the Postgres invoice representation; `20261027020000_mezo_policy_audit_evidence.sql` adds policy and trove-evidence digest columns to audit events. All three migrations were applied and verified in remote migration history.
 - Vercel's server runtime requires `DATABASE_URL` for the Supabase transaction pooler. Use the `postgres.<project-ref>` pooler user on port `6543`, the `relayguard` project database password, and encrypted TLS. The Node Postgres client follows Supabase's documented serverless SSL `require` behavior; use the Supabase database CA certificate to validate the server certificate when available. Keep the connection string only in Vercel's encrypted environment configuration or an ignored local file.
 - Runtime configuration must also include the Mezo testnet signer, official MUSD token, merchant address/allowlist, x402 facilitator and price, Supabase Auth URL and publishable key. `MEZO_PRIVATE_KEY` and `DATABASE_URL` are server-only secrets; never expose them in frontend variables.
 - The Node Postgres driver has passed a read-only live check against the remote database. No test records were created.
@@ -41,4 +41,4 @@ Both Supabase migrations are applied: merchant-authenticated invoice schema and 
 
 ## Public deployment gate
 
-The public host is active. Before treating it as production-ready, re-run the full authenticated QR checkout on a second device, deploy the current trove-aware policy and bounded verification changes, review operator authorization on every route, and complete rate-limit, backup, monitoring, and test-only key-custody checks. The recorded invoice and x402 settlements are on testnet, not mainnet.
+The public host is active. Before treating it as production-ready, re-run the full authenticated QR checkout on a second device, validate the deployed policy thresholds with controlled test cases, review operator authorization on every route, and complete rate-limit, backup, monitoring, and test-only key-custody checks. The recorded invoice and x402 settlements are on testnet, not mainnet.

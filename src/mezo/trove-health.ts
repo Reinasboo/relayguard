@@ -1,4 +1,5 @@
 import { getAddress, parseAbi, type Address, type PublicClient } from "viem";
+import type { MezoTroveEvidence, MezoTroveRisk, SpendingPolicy } from "../core/domain.js";
 
 export const MEZO_TESTNET_TROVE_MANAGER = getAddress("0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0");
 export const MEZO_TESTNET_PRICE_FEED = getAddress("0x86bCF0841622a5dAC14A313a15f96A95421b9366");
@@ -16,17 +17,10 @@ const priceFeedAbi = parseAbi([
   "function fetchPrice() view returns (uint256)"
 ]);
 
-export type TroveRisk = "inactive" | "healthy" | "review_required" | "below_minimum";
+export type TroveRisk = MezoTroveRisk;
 
-export interface MezoTroveHealth {
-  readonly status: "active" | "inactive";
-  readonly risk: TroveRisk;
+export interface MezoTroveHealth extends MezoTroveEvidence {
   readonly borrower: Address;
-  readonly priceAtomic?: string;
-  readonly collateralAtomic?: string;
-  readonly debtAtomic?: string;
-  readonly icrAtomic?: string;
-  readonly observedAt: number;
 }
 
 export function classifyTroveRisk(status: number, icrAtomic?: string): TroveRisk {
@@ -45,27 +39,38 @@ export function classifyTroveRisk(status: number, icrAtomic?: string): TroveRisk
 
 export async function readMezoTroveHealth(
   client: PublicClient,
-  borrower: Address,
-  observedAt = Date.now()
+  borrower: Address
 ): Promise<MezoTroveHealth> {
-  const price = await client.readContract({
-    address: MEZO_TESTNET_PRICE_FEED,
-    abi: priceFeedAbi,
-    functionName: "fetchPrice"
-  });
-  const status = await client.readContract({
-    address: MEZO_TESTNET_TROVE_MANAGER,
-    abi: troveManagerAbi,
-    functionName: "getTroveStatus",
-    args: [borrower]
-  });
+  const blockNumber = await client.getBlockNumber();
+  const block = await client.getBlock({ blockNumber });
+  const [price, status] = await Promise.all([
+    client.readContract({
+      address: MEZO_TESTNET_PRICE_FEED,
+      abi: priceFeedAbi,
+      functionName: "fetchPrice",
+      blockNumber
+    }),
+    client.readContract({
+      address: MEZO_TESTNET_TROVE_MANAGER,
+      abi: troveManagerAbi,
+      functionName: "getTroveStatus",
+      args: [borrower],
+      blockNumber
+    })
+  ]);
+  const evidence = {
+    protocol: "mezo-musd-trove" as const,
+    borrower,
+    chainId: 31611 as const,
+    blockNumber: blockNumber.toString(),
+    observedAt: Number(block.timestamp * 1000n),
+    priceAtomic: price.toString()
+  };
   if (status !== 1) {
     return {
       status: "inactive",
       risk: classifyTroveRisk(Number(status)),
-      borrower,
-      priceAtomic: price.toString(),
-      observedAt
+      ...evidence
     };
   }
 
@@ -74,30 +79,44 @@ export async function readMezoTroveHealth(
       address: MEZO_TESTNET_TROVE_MANAGER,
       abi: troveManagerAbi,
       functionName: "getCurrentICR",
-      args: [borrower, price]
+      args: [borrower, price],
+      blockNumber
     }),
     client.readContract({
       address: MEZO_TESTNET_TROVE_MANAGER,
       abi: troveManagerAbi,
       functionName: "getTroveColl",
-      args: [borrower]
+      args: [borrower],
+      blockNumber
     }),
     client.readContract({
       address: MEZO_TESTNET_TROVE_MANAGER,
       abi: troveManagerAbi,
       functionName: "getTroveDebt",
-      args: [borrower]
+      args: [borrower],
+      blockNumber
     })
   ]);
   const icrAtomic = icr.toString();
   return {
     status: "active",
     risk: classifyTroveRisk(Number(status), icrAtomic),
-    borrower,
-    priceAtomic: price.toString(),
+    ...evidence,
     collateralAtomic: collateral.toString(),
     debtAtomic: debt.toString(),
-    icrAtomic,
-    observedAt
+    icrAtomic
+  };
+}
+
+export function applyMezoTrovePolicy(
+  policy: SpendingPolicy,
+  risk: MezoTroveRisk
+): SpendingPolicy {
+  return {
+    ...policy,
+    mezoTroveRisk: risk,
+    ...(risk === "review_required" && policy.asset === "MUSD"
+      ? { approvalThresholdAtomic: "1" }
+      : {})
   };
 }

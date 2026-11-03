@@ -2,6 +2,22 @@ export const NETWORKS = ["mezo", "solana", "near", "bitcoin-lightning"] as const
 
 export type NetworkId = (typeof NETWORKS)[number];
 
+export type MezoTroveRisk = "inactive" | "healthy" | "review_required" | "below_minimum";
+
+export interface MezoTroveEvidence {
+  readonly protocol: "mezo-musd-trove";
+  readonly borrower: string;
+  readonly chainId: 31611;
+  readonly blockNumber: string;
+  readonly observedAt: number;
+  readonly status: "active" | "inactive";
+  readonly risk: MezoTroveRisk;
+  readonly priceAtomic: string;
+  readonly collateralAtomic?: string;
+  readonly debtAtomic?: string;
+  readonly icrAtomic?: string;
+}
+
 export interface PaymentIntent {
   readonly agentId: string;
   readonly network: NetworkId;
@@ -23,6 +39,7 @@ export interface SpendingPolicy {
   readonly dailyLimitAtomic: string;
   /** A transaction at or above this amount requires human approval. */
   readonly approvalThresholdAtomic?: string;
+  readonly mezoTroveRisk?: MezoTroveRisk;
   readonly allowedRecipients: readonly string[];
   readonly approverIds: readonly string[];
   readonly expiresAt?: number;
@@ -46,6 +63,7 @@ export interface AuthorizationRecord {
   readonly policyId: string;
   readonly policyVersion: number;
   readonly policyDigest: string;
+  readonly mezoTroveEvidence?: readonly MezoTroveEvidence[];
   readonly status: AuthorizationStatus;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -67,6 +85,7 @@ export type PolicyDecision =
         | "recipient_not_allowed"
         | "transaction_limit_exceeded"
         | "daily_limit_exceeded"
+        | "mezo_trove_below_minimum"
         | "policy_expired"
         | "invalid_policy";
     };

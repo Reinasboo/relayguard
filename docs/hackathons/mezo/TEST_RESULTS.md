@@ -2,8 +2,8 @@
 
 ## Automated results
 
-- `npm test` passes 24 tests, including policy, authorization lifecycle, SQLite persistence, audit-chain, adapter conformance, Mezo network-payload, invoice lifecycle, and owner scoping.
-- Core policy tests cover spending limits, approval expiry, idempotency, and audit hash-chain integrity.
+- `npm test` passes 38 tests, including trove risk tiers, block-pinned protocol reads, authorization lifecycle, SQLite persistence, audit-chain integrity, adapter conformance, invoice lifecycle, and owner scoping.
+- Core policy tests cover spending limits, approval expiry, idempotency, stale-policy cancellation, and tamper detection for stored Mezo evidence.
 - Settlement verification compares native transaction value/recipient and requires an MUSD `Transfer` log matching the submitted call; the API then compares those fields to the stored authorized intent.
 - `node --check public/app.js`, TypeScript build, and `npm audit --omit=dev` pass; production dependency audit found zero advisories.
 
@@ -22,7 +22,8 @@
 - Live local `GET /api/paid-resource` returns HTTP 402 with a Base64 `PAYMENT-REQUIRED` header. Decoded terms specify 0.001 MUSD (`1000000000000000` atomic units), chain `eip155:31611`, and the generated merchant recipient.
 - Supabase CLI authenticated and linked to the `relayguard` project; email Auth is enabled and loopback redirect URLs are allowlisted.
 - Invoice-list endpoint rejects unauthenticated access. The owner has since confirmed that merchant sign-in works.
-- Supabase schema migration dry-run passed, but live `db push` timed out; remote PostgreSQL migration is not claimed as complete.
+- The three Supabase migrations are applied to the linked production project. The additive trove-evidence audit migration was dry-run, applied, and confirmed in remote migration history.
+- The production Vercel deployment starts against hosted Postgres with the updated audit schema; the public Mezo Testnet health route returns a block-pinned trove snapshot.
 - x402 payment settled through the Mezo facilitator, and the paid resource returned HTTP 200. The response transaction was independently checked on Mezo Testnet.
 - The x402 resource payment is [`0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c`](https://explorer.test.mezo.org/tx/0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c), successful in block `16372674`; receipt status `success`, gas used `125000`. Buyer balance decreased by `0.001 MUSD`; merchant balance increased by the same amount.
 - Permit2 required a token allowance before settlement. An exact `0.001 MUSD` allowance (not unlimited) was granted to canonical Permit2 at `0x000000000022D473030F116dDEE9F6B43aC78BA3`: [`0xe5ca4098ac03da35d7cedbbd76389a2bba0280d988d97636a5086a6ea075d20a`](https://explorer.test.mezo.org/tx/0xe5ca4098ac03da35d7cedbbd76389a2bba0280d988d97636a5086a6ea075d20a), successful in block `16372668`. The approval was limited to the x402 charge.
@@ -47,3 +48,11 @@
 - At the confirmation block, the oracle-valued collateral was `$3,573.12` against `$2,001.80` debt, for an approximately `178.50%` collateral ratio. The contract's minimum collateral ratio is `110%`; collateral remains exposed to liquidation if the testnet BTC oracle price falls sufficiently or debt accrues.
 - After the `1.00 MUSD` invoice payment and `0.001 MUSD` x402 settlement, the buyer held `1798.999 MUSD` and the merchant receiver held `1.001 MUSD`. The merchant receiver received both paths at the same address.
 - Local API/UI checks: policy-compliant BTC intent authorized without execution; unallowlisted recipient denied; zero-balance MUSD request rejected before recording authorization; audit chain remained valid.
+
+## Mezo trove policy evidence
+
+- Each MUSD policy read pins the PriceFeed, trove status, ICR, collateral, and debt calls to one Mezo Testnet block.
+- Authorization records retain the block number, observation time, borrower, price, risk tier, ICR, collateral, and debt for request, approval, and execution checks.
+- Hash-linked audit events commit the policy digest and the relevant trove-evidence digest. SQLite verification and the Postgres verifier reject record tampering that disagrees with those commitments.
+- Automated tests cover healthy/review/below-minimum decisions, review-tier human approval, fail-closed RPC errors, stale-policy rejection/cancellation, and audit evidence tampering.
+- Production health currently confirms a healthy trove at the observed block. Live threshold and RPC-failure scenarios have not been induced against the funded production wallet and remain unverified.

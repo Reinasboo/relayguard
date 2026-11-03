@@ -340,6 +340,25 @@ function renderTransaction(record, details = {}) {
   addDetail(panel, "Recipient", intent.recipient, { mono: true });
   addDetail(panel, "Purpose", intent.purpose);
   if (record.reason) addDetail(panel, "Policy result", record.reason.replaceAll("_", " "));
+  for (const [index, evidence] of (record.mezoTroveEvidence || []).entries()) {
+    const observed = new Date(evidence.observedAt).toLocaleString();
+    addDetail(
+      panel,
+      `Mezo policy snapshot ${index + 1}`,
+      `${evidence.risk.replaceAll("_", " ")} · block ${evidence.blockNumber} · ${observed}`
+    );
+    addDetail(panel, "Trove borrower", evidence.borrower, { mono: true });
+    addDetail(panel, "BTC/USD at decision", `$${formatDisplayAtomic(evidence.priceAtomic)}`);
+    if (evidence.icrAtomic) {
+      addDetail(panel, "Collateral ratio", `${formatDisplayAtomic(evidence.icrAtomic, 2, 16)}%`);
+    }
+    if (evidence.collateralAtomic) {
+      addDetail(panel, "BTC collateral", `${formatDisplayAtomic(evidence.collateralAtomic)} BTC`);
+    }
+    if (evidence.debtAtomic) {
+      addDetail(panel, "MUSD debt", `${formatDisplayAtomic(evidence.debtAtomic)} MUSD`);
+    }
+  }
   if (details.transactionHash || currentHash) {
     const hash = details.transactionHash || currentHash;
     currentHash = hash;
@@ -371,9 +390,10 @@ function renderTransaction(record, details = {}) {
     } else {
       const note = document.createElement("p");
       note.className = "action-caption";
-      note.textContent = "The one-time approval challenge is only available in the tab that created this request. Submit a fresh intent if that tab was closed.";
+      note.textContent = "The one-time approval challenge is unavailable in this tab. Cancel this request and submit a fresh intent.";
       actions.append(note);
     }
+    actions.append(actionButton("Cancel request", "button button-quiet", cancelPayment));
   } else if (record.status === "authorized") {
     byId("human-status").textContent = " · not required or approved";
     setStep("step-intent", "complete", "RECEIVED");
@@ -573,7 +593,17 @@ async function loadAudit() {
       const title = document.createElement("strong");
       title.textContent = event.type.replaceAll("_", " ");
       const meta = document.createElement("small");
-      meta.textContent = `${new Date(event.at).toLocaleTimeString()} · ${event.status.replaceAll("_", " ")}`;
+      const commitments = [
+        event.policyDigest ? `policy ${event.policyDigest.slice(0, 8)}` : "",
+        event.mezoTroveEvidenceDigest
+          ? `Mezo evidence ${event.mezoTroveEvidenceDigest.slice(0, 8)}`
+          : ""
+      ].filter(Boolean);
+      meta.textContent = [
+        new Date(event.at).toLocaleTimeString(),
+        event.status.replaceAll("_", " "),
+        ...commitments
+      ].join(" · ");
       copy.append(title, meta);
       const sequence = document.createElement("span");
       sequence.className = "audit-sequence";
@@ -633,7 +663,16 @@ async function approvePayment() {
     renderTransaction(body.record);
     toast(body.message, "success");
   } catch (error) {
-    showError(error.message);
+    if (error.details?.stalePolicy && error.details.record) {
+      currentChallenge = undefined;
+      renderTransaction(error.details.record);
+      const notice = document.createElement("div");
+      notice.className = "inline-error";
+      notice.textContent = error.message;
+      byId("action-area").prepend(notice);
+    } else {
+      showError(error.message);
+    }
   }
 }
 

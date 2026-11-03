@@ -29,7 +29,13 @@ import type { PaymentIntent, SpendingPolicy } from "./core/domain.js";
 import { MezoAdapter } from "./adapters/mezo.js";
 import type { PreparedPayment } from "./adapters/contract.js";
 import { digest } from "./core/policy.js";
-import { readMezoTroveHealth, TROVE_MINIMUM_ICR, TROVE_REVIEW_ICR, type MezoTroveHealth } from "./mezo/trove-health.js";
+import {
+  applyMezoTrovePolicy,
+  readMezoTroveHealth,
+  TROVE_MINIMUM_ICR,
+  TROVE_REVIEW_ICR,
+  type MezoTroveHealth
+} from "./mezo/trove-health.js";
 import QRCode from "qrcode";
 
 loadDotenv({ path: ".env.app.local", override: true });
@@ -191,11 +197,7 @@ function policyFor(asset: "BTC" | "MUSD", decimals: number, troveHealth?: MezoTr
   const max = process.env[`${prefix}_MAX_TRANSACTION`] ?? defaults.max;
   const daily = process.env[`${prefix}_DAILY_LIMIT`] ?? defaults.daily;
   const approval = process.env[`${prefix}_APPROVAL_THRESHOLD`] ?? defaults.approval;
-  const approvalThresholdAtomic =
-    asset === "MUSD" && troveHealth?.risk === "review_required"
-      ? "1"
-      : parseUnits(approval, decimals).toString();
-  return {
+  const policy: SpendingPolicy = {
     id: `mezo-testnet-${asset.toLowerCase()}`,
     version: 1,
     agentId: process.env.MEZO_AGENT_ID ?? "relayguard-demo-agent",
@@ -203,10 +205,13 @@ function policyFor(asset: "BTC" | "MUSD", decimals: number, troveHealth?: MezoTr
     asset,
     maxTransactionAtomic: parseUnits(max, decimals).toString(),
     dailyLimitAtomic: parseUnits(daily, decimals).toString(),
-    approvalThresholdAtomic,
+    approvalThresholdAtomic: parseUnits(approval, decimals).toString(),
     allowedRecipients,
     approverIds: [approverId]
   };
+  return asset === "MUSD" && troveHealth
+    ? applyMezoTrovePolicy(policy, troveHealth.risk)
+    : policy;
 }
 
 async function assetDetails(asset: string): Promise<{ decimals: number; tokenAddress?: Address }> {
@@ -397,7 +402,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const operatorApi =
     url.pathname === "/api/audit" ||
     url.pathname === "/api/payments" ||
-    /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|execute|verify))?$/.test(url.pathname);
+    /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|cancel|execute|verify))?$/.test(url.pathname);
   if (operatorApi && !(await authenticatedUserId(req))) {
     response(res, 401, { error: "Sign in with your RelayGuard merchant account to access payment controls." });
     return;
@@ -750,13 +755,9 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         response(res, 503, { error: "Could not verify Mezo MUSD trove health. MUSD authorization is paused; retry when the Mezo RPC is available." });
         return;
       }
-      if (troveHealth.risk === "below_minimum") {
-        response(res, 403, { error: "MUSD spending is blocked because the active trove is below Mezo's 110% minimum collateral ratio." });
-        return;
-      }
     }
     const policy = policyFor(asset as "BTC" | "MUSD", details.decimals, troveHealth);
-    const result = await authorization.request(intent, policy);
+    const result = await authorization.request(intent, policy, Date.now(), troveHealth);
     if (result.record.status === "denied") {
       response(res, 403, { record: result.record, error: result.record.reason ?? "Policy denied this payment." });
       return;
@@ -810,13 +811,26 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         response(res, 503, { error: "Could not verify current Mezo trove health. Approval is paused; retry when the Mezo RPC is available." });
         return;
       }
-      if (troveHealth.risk === "below_minimum") {
-        response(res, 409, { error: "MUSD approval is blocked because the active trove is below Mezo's 110% minimum collateral ratio." });
-        return;
-      }
     }
     const policy = policyFor(record.intent.asset as "BTC" | "MUSD", details.decimals, troveHealth);
-    const approved = await authorization.approve(recordId, approverId, body.challenge, policy);
+    if (digest(policy) !== record.policyDigest) {
+      response(res, 409, {
+        error: troveHealth?.risk === "below_minimum"
+          ? "Approval is blocked because the active trove is below Mezo's 110% minimum collateral ratio. Cancel this request."
+          : "Mezo trove risk changed after this request. The approval is stale; cancel it and submit a fresh intent.",
+        stalePolicy: true,
+        record
+      });
+      return;
+    }
+    const approved = await authorization.approve(
+      recordId,
+      approverId,
+      body.challenge,
+      policy,
+      Date.now(),
+      troveHealth
+    );
     const prepared = await adapter.prepare(approved.intent, undefined, {
       rpcUrl,
       network: "testnet",
@@ -877,14 +891,13 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         response(res, 503, { error: "Could not verify current Mezo trove health. No payment was submitted; retry when the Mezo RPC is available.", record });
         return;
       }
-      if (troveHealth.risk === "below_minimum") {
-        response(res, 409, { error: "MUSD execution is blocked because the active trove is below Mezo's 110% minimum collateral ratio.", record });
-        return;
-      }
       const currentPolicy = policyFor("MUSD", (await assetDetails("MUSD")).decimals, troveHealth);
       if (digest(currentPolicy) !== record.policyDigest) {
         response(res, 409, {
-          error: "Mezo trove health changed after authorization. No payment was submitted; cancel this intent and request a fresh policy decision.",
+          error: troveHealth.risk === "below_minimum"
+            ? "Execution is blocked because the active trove is below Mezo's 110% minimum collateral ratio. No payment was submitted; cancel this intent."
+            : "Mezo trove risk changed after authorization. No payment was submitted; cancel this intent and request a fresh policy decision.",
+          stalePolicy: true,
           record
         });
         return;
@@ -925,7 +938,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: `Insufficient ${record.intent.asset} balance; transaction not submitted.`, record });
       return;
     }
-    await authorization.markExecuting(recordId);
+    await authorization.markExecuting(recordId, Date.now(), troveHealth);
     const result = await adapter.execute(prepared, undefined, {
       rpcUrl,
       network: "testnet",

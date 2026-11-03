@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   AuthorizationService,
+  digest,
   evaluatePolicy
 } from "../dist/src/index.js";
 
@@ -111,6 +112,87 @@ test("invalid timestamps are rejected without corrupting the ledger", () => {
   assert.throws(() => service.request(intent(), policy, Number.NaN), /finite number/);
   const valid = service.request(intent(), policy, 100);
   assert.equal(valid.record.status, "authorized");
+});
+
+test("Mezo trove evidence is retained and committed to the audit chain at each decision", () => {
+  const service = new AuthorizationService();
+  const musdPolicy = {
+    ...policy,
+    network: "mezo",
+    asset: "MUSD",
+    approvalThresholdAtomic: "1",
+    mezoTroveRisk: "review_required"
+  };
+  const musdIntent = intent({
+    network: "mezo",
+    asset: "MUSD",
+    amountAtomic: "100",
+    idempotencyKey: "trove-evidence"
+  });
+  const firstEvidence = {
+    protocol: "mezo-musd-trove",
+    borrower: "0x840E5bBF20D725f581752f8A4021ADd730550d47",
+    chainId: 31611,
+    blockNumber: "100",
+    observedAt: 1234000,
+    status: "active",
+    risk: "review_required",
+    priceAtomic: "2000000000000000000000",
+    collateralAtomic: "45000000000000000",
+    debtAtomic: "2001800000000000000000",
+    icrAtomic: "1490000000000000000"
+  };
+  const secondEvidence = { ...firstEvidence, blockNumber: "101", observedAt: 1235000 };
+  const pending = service.request(musdIntent, musdPolicy, 100, firstEvidence);
+  assert.equal(pending.record.status, "awaiting_approval");
+  assert.deepEqual(pending.record.mezoTroveEvidence, [firstEvidence]);
+  assert.equal(service.auditEvents()[0].policyDigest, pending.record.policyDigest);
+  assert.equal(service.auditEvents()[0].mezoTroveEvidenceDigest, digest(firstEvidence));
+
+  const approved = service.approve(
+    pending.record.id,
+    "human-1",
+    pending.approvalChallenge,
+    musdPolicy,
+    101,
+    secondEvidence
+  );
+  assert.deepEqual(approved.mezoTroveEvidence, [firstEvidence, secondEvidence]);
+  assert.equal(service.auditEvents()[1].mezoTroveEvidenceDigest, digest(secondEvidence));
+  assert.equal(service.verifyAuditChain(), true);
+  service.database.prepare("UPDATE authorizations SET record_json = ? WHERE id = ?").run(
+    JSON.stringify({ ...approved, mezoTroveEvidence: [{ ...secondEvidence, blockNumber: "999" }] }),
+    approved.id
+  );
+  assert.equal(service.verifyAuditChain(), false);
+});
+
+test("stale Mezo risk approvals cannot proceed and remain cancellable", () => {
+  const service = new AuthorizationService();
+  const reviewPolicy = {
+    ...policy,
+    network: "mezo",
+    asset: "MUSD",
+    approvalThresholdAtomic: "1",
+    mezoTroveRisk: "review_required"
+  };
+  const request = service.request(
+    intent({ network: "mezo", asset: "MUSD", idempotencyKey: "stale-trove" }),
+    reviewPolicy,
+    100
+  );
+  assert.throws(
+    () => service.approve(
+      request.record.id,
+      "human-1",
+      request.approvalChallenge,
+      { ...reviewPolicy, mezoTroveRisk: "healthy" },
+      101
+    ),
+    /bound policy has changed/
+  );
+  assert.equal(service.cancel(request.record.id, 102).status, "cancelled");
+  assert.equal(service.verifyAuditChain(), true);
 });
 
 test("idempotency returns the original decision and rejects changed intent", () => {

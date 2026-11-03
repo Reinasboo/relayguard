@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   AuthorizationRecord,
   AuthorizationStatus,
+  MezoTroveEvidence,
   PaymentIntent,
   SpendingPolicy
 } from "./domain.js";
@@ -20,6 +21,8 @@ export interface AuditEvent {
   readonly type: string;
   readonly recordId: string;
   readonly intentDigest: string;
+  readonly policyDigest?: string;
+  readonly mezoTroveEvidenceDigest?: string;
   readonly status: AuthorizationStatus;
   readonly previousHash: string;
   readonly hash: string;
@@ -105,13 +108,20 @@ function decodeAuditEvent(row: Record<string, unknown>): AuditEvent {
     intentDigest: String(row.intent_digest),
     status: String(row.status) as AuthorizationStatus,
     previousHash: String(row.previous_hash),
-    hash: String(row.hash)
+    hash: String(row.hash),
+    ...(typeof row.policy_digest === "string" ? { policyDigest: row.policy_digest } : {}),
+    ...(typeof row.mezo_trove_evidence_digest === "string"
+      ? { mezoTroveEvidenceDigest: row.mezo_trove_evidence_digest }
+      : {})
   };
   if (
     !Number.isSafeInteger(event.sequence) ||
     !Number.isFinite(event.at) ||
     !isAuthorizationStatus(event.status) ||
-    !/^[0-9a-f]{64}$/.test(event.intentDigest)
+    !/^[0-9a-f]{64}$/.test(event.intentDigest) ||
+    (event.policyDigest !== undefined && !/^[0-9a-f]{64}$/.test(event.policyDigest)) ||
+    (event.mezoTroveEvidenceDigest !== undefined &&
+      !/^[0-9a-f]{64}$/.test(event.mezoTroveEvidenceDigest))
   ) {
     throw new Error("Authorization database contains a malformed audit event.");
   }
@@ -162,6 +172,8 @@ export class AuthorizationService implements AuthorizationStore {
         intent_digest TEXT NOT NULL,
         status TEXT NOT NULL,
         previous_hash TEXT NOT NULL,
+        policy_digest TEXT,
+        mezo_trove_evidence_digest TEXT,
         hash TEXT NOT NULL UNIQUE
       );
       CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -171,13 +183,24 @@ export class AuthorizationService implements AuthorizationStore {
       INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (1, unixepoch() * 1000);
     `);
+    const auditColumns = this.database
+      .prepare("PRAGMA table_info(audit_events)")
+      .all()
+      .map((row) => String(row.name));
+    if (!auditColumns.includes("policy_digest")) {
+      this.database.exec("ALTER TABLE audit_events ADD COLUMN policy_digest TEXT;");
+    }
+    if (!auditColumns.includes("mezo_trove_evidence_digest")) {
+      this.database.exec("ALTER TABLE audit_events ADD COLUMN mezo_trove_evidence_digest TEXT;");
+    }
     this.ensureAuditChainValid();
   }
 
   request(
     intent: PaymentIntent,
     policy: SpendingPolicy,
-    now = Date.now()
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
   ): RequestResult {
     this.ensureOpen();
     if (!Number.isFinite(now)) {
@@ -252,6 +275,7 @@ export class AuthorizationService implements AuthorizationStore {
         policyId: policy.id,
         policyVersion: policy.version,
         policyDigest,
+        ...(mezoTroveEvidence === undefined ? {} : { mezoTroveEvidence: [mezoTroveEvidence] }),
         status,
         createdAt: now,
         updatedAt: now,
@@ -273,7 +297,8 @@ export class AuthorizationService implements AuthorizationStore {
     approverId: string,
     challenge: string,
     currentPolicy: SpendingPolicy,
-    now = Date.now()
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
   ): AuthorizationRecord {
     this.ensureOpen();
     if (!Number.isFinite(now)) {
@@ -303,7 +328,16 @@ export class AuthorizationService implements AuthorizationStore {
       ) {
         throw new Error("Approval challenge is invalid.");
       }
-      return { record: this.transition(record, "authorized", now) };
+      return {
+        record: this.transition(
+          record,
+          "authorized",
+          now,
+          undefined,
+          undefined,
+          mezoTroveEvidence
+        )
+      };
     });
     if ("expired" in result) {
       throw new Error("Approval challenge has expired.");
@@ -343,8 +377,12 @@ export class AuthorizationService implements AuthorizationStore {
     return result.record;
   }
 
-  markExecuting(recordId: string, now = Date.now()): AuthorizationRecord {
-    return this.transitionById(recordId, "executing", now);
+  markExecuting(
+    recordId: string,
+    now = Date.now(),
+    mezoTroveEvidence?: MezoTroveEvidence
+  ): AuthorizationRecord {
+    return this.transitionById(recordId, "executing", now, undefined, undefined, mezoTroveEvidence);
   }
 
   markSubmitted(recordId: string, now = Date.now(), reference?: string): AuthorizationRecord {
@@ -399,6 +437,16 @@ export class AuthorizationService implements AuthorizationStore {
       if (event.previousHash !== previousHash || digest(unsigned) !== hash) {
         return false;
       }
+      if (event.policyDigest !== undefined || event.mezoTroveEvidenceDigest !== undefined) {
+        const record = this.requireRecord(event.recordId);
+        if (event.policyDigest !== record.policyDigest) return false;
+        if (
+          event.mezoTroveEvidenceDigest !== undefined &&
+          !record.mezoTroveEvidence?.some((evidence) => digest(evidence) === event.mezoTroveEvidenceDigest)
+        ) {
+          return false;
+        }
+      }
       previousHash = event.hash;
     }
     return true;
@@ -420,14 +468,22 @@ export class AuthorizationService implements AuthorizationStore {
     nextStatus: AuthorizationStatus,
     now: number,
     reason?: string,
-    transactionReference?: string
+    transactionReference?: string,
+    mezoTroveEvidence?: MezoTroveEvidence
   ): AuthorizationRecord {
     this.ensureOpen();
     if (!Number.isFinite(now)) {
       throw new Error("Authorization timestamp must be a finite number.");
     }
     return this.transaction(() =>
-      this.transition(this.requireRecord(recordId), nextStatus, now, reason, transactionReference)
+      this.transition(
+        this.requireRecord(recordId),
+        nextStatus,
+        now,
+        reason,
+        transactionReference,
+        mezoTroveEvidence
+      )
     );
   }
 
@@ -436,7 +492,8 @@ export class AuthorizationService implements AuthorizationStore {
     nextStatus: AuthorizationStatus,
     now: number,
     reason?: string,
-    transactionReference?: string
+    transactionReference?: string,
+    mezoTroveEvidence?: MezoTroveEvidence
   ): AuthorizationRecord {
     if (!validTransition(previous.status, nextStatus)) {
       throw new Error(`Invalid authorization transition '${previous.status}' -> '${nextStatus}'.`);
@@ -445,6 +502,9 @@ export class AuthorizationService implements AuthorizationStore {
       ...previous,
       status: nextStatus,
       updatedAt: now,
+      ...(mezoTroveEvidence === undefined
+        ? {}
+        : { mezoTroveEvidence: [...(previous.mezoTroveEvidence ?? []), mezoTroveEvidence] }),
       ...(reason === undefined ? {} : { reason }),
       ...(transactionReference === undefined ? {} : { transactionReference })
     });
@@ -506,13 +566,18 @@ export class AuthorizationService implements AuthorizationStore {
       recordId: record.id,
       intentDigest: record.intentDigest,
       status: record.status,
-      previousHash
+      previousHash,
+      policyDigest: record.policyDigest,
+      ...(record.mezoTroveEvidence?.length
+        ? { mezoTroveEvidenceDigest: digest(record.mezoTroveEvidence.at(-1)) }
+        : {})
     };
     this.database
       .prepare(
         `INSERT INTO audit_events (
-          sequence, at, type, record_id, intent_digest, status, previous_hash, hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          sequence, at, type, record_id, intent_digest, status, previous_hash,
+          policy_digest, mezo_trove_evidence_digest, hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         unsigned.sequence,
@@ -522,6 +587,8 @@ export class AuthorizationService implements AuthorizationStore {
         unsigned.intentDigest,
         unsigned.status,
         unsigned.previousHash,
+        unsigned.policyDigest,
+        unsigned.mezoTroveEvidenceDigest ?? null,
         digest(unsigned)
       );
   }
@@ -555,7 +622,14 @@ export class AuthorizationService implements AuthorizationStore {
   private freezeRecord(record: AuthorizationRecord): AuthorizationRecord {
     return Object.freeze({
       ...record,
-      intent: Object.freeze({ ...record.intent })
+      intent: Object.freeze({ ...record.intent }),
+      ...(record.mezoTroveEvidence === undefined
+        ? {}
+        : {
+            mezoTroveEvidence: Object.freeze(
+              record.mezoTroveEvidence.map((item) => Object.freeze({ ...item }))
+            )
+          })
     });
   }
 

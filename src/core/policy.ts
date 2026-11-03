@@ -78,6 +78,9 @@ export function evaluatePolicy(
   if (intent.asset !== policy.asset) {
     return { outcome: "deny", reason: "asset_mismatch" };
   }
+  if (intent.asset === "MUSD" && policy.mezoTroveRisk === "below_minimum") {
+    return { outcome: "deny", reason: "mezo_trove_below_minimum" };
+  }
   if (!policy.allowedRecipients.includes(intent.recipient)) {
     return { outcome: "deny", reason: "recipient_not_allowed" };
   }

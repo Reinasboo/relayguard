@@ -8,7 +8,7 @@
 4. In the integrated paid-API panel, request the x402 resource. Show the 402 payment-required response and its exact MUSD, network, and merchant recipient requirements.
 5. The verified testnet demo has a 1.00 MUSD invoice payment and a 0.001 MUSD x402 payment. Show their different settlement transactions and the merchant's shared receiving address.
 6. To repeat the x402 flow, use a connected Mezo wallet with MUSD and BTC for gas. If needed, RelayGuard requests an exact MUSD allowance for Permit2, waits for confirmation, then asks the wallet to sign the payment; the facilitator handles gas for the MUSD settlement.
-7. After deploying the Wave 2 changes, show the operator's live trove health and explain the policy: human review below 150% ICR, block below the 110% minimum, and fail closed if Mezo protocol state is unavailable. This control applies to the configured operator signer, not to the checkout buyer.
+7. Show the deployed operator trove health and explain the policy: human review below RelayGuard's 150% ICR buffer, block below Mezo's 110% minimum, and fail closed if protocol state is unavailable. For an MUSD authorization, show the block-pinned policy snapshot and its audit commitment; demonstrate that a changed risk tier requires cancelling and submitting a fresh request. The production dashboard currently reads healthy; present threshold outcomes as policy behavior unless independently verified in a controlled live test. This control applies to the configured operator signer, not to the checkout buyer.
 
 ## Existing authorization proof (optional)
 
@@ -18,4 +18,4 @@
 
 ## Live-network note
 
-The public app is available at [relayguard.vercel.app](https://relayguard.vercel.app). The checkout route is deployed, but perform a fresh end-to-end QR/wallet pass before recording the demo. Testnet invoice and x402 settlement evidence is recorded in [test results](./TEST_RESULTS.md). Do not present testnet transactions as mainnet payments.
+The public app is available at [relayguard.vercel.app](https://relayguard.vercel.app). The latest production deployment and hosted audit migration are live; perform a fresh end-to-end QR/wallet pass before recording the demo. Testnet invoice and x402 settlement evidence is recorded in [test results](./TEST_RESULTS.md). Do not present testnet transactions as mainnet payments.

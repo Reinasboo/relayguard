@@ -132,6 +132,8 @@ h1 { margin: 8px 0 7px; font-size: clamp(27px, 3vw, 35px); font-weight: 600; }
 .button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 15px; border: 1px solid transparent; border-radius: 6px; padding: 0 15px; font-size: 11px; font-weight: 700; transition: transform .12s, filter .12s; }
 .button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
 .button:disabled { cursor: not-allowed; opacity: .45; }
+.button[aria-busy="true"] { cursor: progress; opacity: .75; }
+.icon-button[aria-busy="true"] { cursor: progress; opacity: .6; }
 .button-primary { width: 100%; color: #162014; background: var(--green); }
 .button-primary span:last-child { margin-left: auto; font-size: 16px; }
 .button-approve { color: #172115; background: var(--green); }
@@ -208,6 +210,7 @@ h1 { margin: 8px 0 7px; font-size: clamp(27px, 3vw, 35px); font-weight: 600; }
 .verified-tag { margin-left: auto; color: #a4d37c; font: 8px "DM Mono", monospace; letter-spacing: .35px; }
 .created-invoice { display: flex; align-items: center; gap: 14px; padding: 13px; margin-top: 15px; border: 1px solid #3b5034; border-radius: 8px; background: #172219; }
 .created-invoice img { width: 92px; height: 92px; padding: 5px; border-radius: 5px; background: #fff; }
+.created-invoice .danger { color: #ffaaaa; }
 .created-invoice-details { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 9px; }
 .created-invoice-details strong { color: #dce9d6; font-size: 10px; }
 .created-invoice-details a { max-width: 100%; overflow-wrap: anywhere; color: var(--green); font: 9px "DM Mono", monospace; text-decoration: none; }
@@ -233,6 +236,7 @@ h1 { margin: 8px 0 7px; font-size: clamp(27px, 3vw, 35px); font-weight: 600; }
 .checkout-description { margin-top: 4px; color: #9aa7b2; font-size: 12px; }
 .checkout-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 7px; margin: 20px auto 17px; color: #82909b; font-size: 9px; }
 .checkout-qr-wrap img { width: 122px; height: 122px; padding: 6px; border-radius: 7px; background: #fff; }
+.checkout-qr-wrap .danger { color: #ffaaaa; }
 .checkout-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 15px; padding: 7px 0; border-top: 1px solid #2a3540; border-bottom: 1px solid #2a3540; }
 .checkout-facts > div { display: flex; justify-content: space-between; gap: 8px; padding: 9px 0; }
 .checkout-facts span { color: #7e8c98; font-size: 9px; }

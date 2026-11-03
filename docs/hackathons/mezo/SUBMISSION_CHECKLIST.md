@@ -30,6 +30,8 @@
 - [x] Cover policy behavior at exact review/block thresholds and invalid PriceFeed/RPC failure paths with controlled automated tests.
 - [x] Add buyer-side MUSD/BTC balance and transfer-gas preflight before invoice authorization.
 - [x] Add optional, explicitly reviewed Mezo Testnet trove opening for eligible underfunded buyers; keep borrowing and invoice payment as separate transactions.
+- [x] Improve frontend loading, retry, and stale-request behavior; validate with 45 automated tests and delayed local API mocks.
+- [x] Read-only preflight a user-connected Testnet wallet; confirm the optional borrow correctly refuses insufficient collateral, with no signature or transaction submitted.
 - [ ] Manually verify the new checkout preflight and optional BorrowerOperations flow in a browser wallet using a separate funded Testnet account; do not broadcast a borrow transaction without explicit approval.
 - [ ] Finish production operational hardening: rate limits, monitoring, backups, route-by-route operator review, and key custody.
 - [ ] Validate final buildathon rules, submission format, and demo reproducibility.

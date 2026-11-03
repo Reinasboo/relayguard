@@ -85,11 +85,13 @@ The policy uses the operator's trove as a spending signal; it does not open or m
 
 *Illustrative product screen; see the linked test evidence for actual settlement records.*
 
-- Invoice/receipt waits time out with retry; verification stops after 20 checks.
-- Payment-in-progress guidance discourages duplicate payment.
+- The dashboard loads one protocol snapshot per refresh instead of waiting on sequential, duplicate health reads.
+- Merchant invoices and API integrations load concurrently; a new invoice is shown before its activity list refresh completes.
+- Checkout labels wallet, balance, authorization, and receipt-verification stages; API calls time out with a retry path.
+- Receipt checks stop after 20 attempts and clearly warn buyers not to pay again while settlement is pending.
 - Changed trove risk blocks stale approval/execution; cancel and submit fresh.
 
-**Status:** deployed; production failure-mode testing remains outstanding.
+These changes remove avoidable waits; total response time still varies with hosting cold starts and Mezo RPC latency. **Status:** deployed; production latency has not yet been remeasured.
 
 ---
 

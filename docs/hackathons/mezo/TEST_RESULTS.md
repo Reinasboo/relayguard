@@ -7,6 +7,15 @@
 - Settlement verification compares native transaction value/recipient and requires an MUSD `Transfer` log matching the submitted call; the API then compares those fields to the stored authorized intent.
 - `node --check public/app.js`, TypeScript build, and `npm audit --omit=dev` pass; production dependency audit found zero advisories.
 
+## Loading and latency behavior
+
+- The signed-in dashboard requests its protected protocol snapshot directly; the public view requests only the public snapshot. This avoids serial health and duplicate-snapshot reads. FAQ-only entry skips operator RPC and application configuration requests until navigating to Payments or Merchant.
+- Merchant invoice history and x402 integrations load concurrently. A created invoice and checkout link appear as soon as creation succeeds; the activity refresh no longer delays or masks the success message.
+- A delayed local API mock (250 ms profile/config/resource responses and 1.5 s invoice-history responses) confirmed concurrent loading and showed the new invoice card about 300 ms after the create response, while history was still refreshing. A missing mock QR endpoint displayed the checkout-link fallback instead of a broken image.
+- Wallet, policy, account, invoice, and receipt-verification actions now expose progress states. Browser API calls are bounded by the existing 15-second timeout; safe load failures offer retry, and status-read failures keep payment controls paused.
+- These are controlled local UI timings, not production latency measurements or an SLA. Vercel cold starts and Mezo RPC latency remain variable.
+- No live wallet signature or transaction was performed for this loading-state change: the shared browser pages did not expose an injected wallet provider. The test-wallet page available in the prior production mock is not treated as a real user wallet.
+
 ## Merchant checkout evidence and limits
 
 - Live local API smoke check created an open `2.50 MUSD` invoice, served the checkout page (HTTP 200), and returned a 2,703-byte PNG QR code pointing to it.
@@ -60,6 +69,7 @@
 - At the confirmation block, the oracle-valued collateral was `$3,573.12` against `$2,001.80` debt, for an approximately `178.50%` collateral ratio. The contract's minimum collateral ratio is `110%`; collateral remains exposed to liquidation if the testnet BTC oracle price falls sufficiently or debt accrues.
 - After the `1.00 MUSD` invoice payment and `0.001 MUSD` x402 settlement, the buyer held `1798.999 MUSD` and the merchant receiver held `1.001 MUSD`. The merchant receiver received both paths at the same address.
 - Local API/UI checks: policy-compliant BTC intent authorized without execution; unallowlisted recipient denied; zero-balance MUSD request rejected before recording authorization; audit chain remained valid.
+- Follow-up read-only preflight for the user-connected wallet (address omitted) confirmed Testnet chain ID `31611`, no active trove, `0 MUSD`, and `0.05 BTC` at block `16551183`. Current terms were a `1,800 MUSD` minimum principal, `1.8 MUSD` borrowing fee, `200 MUSD` gas compensation, and `1%` interest. At the observed `$77,673.73379/BTC` PriceFeed, RelayGuard's 200% opening buffer required `0.0515438077 BTC` before gas. The account could not meet that collateral amount; gas estimation returned insufficient balance, and no wallet signature or transaction occurred. Borrow/payment testing for this account remains blocked until it has enough Testnet BTC for collateral plus gas.
 
 ## Mezo trove policy evidence
 

@@ -20,7 +20,12 @@ let checkoutWallet;
 let checkoutBorrowQuote;
 let checkoutVerificationInProgress = false;
 let appConfig;
+let appConfigPromise;
 let authSession;
+let healthLoadSequence = 0;
+let auditLoadSequence = 0;
+let merchantLoadSequence = 0;
+let merchantInvoices = [];
 
 try {
   authSession = JSON.parse(localStorage.getItem("relayguard.authSession") || "null");
@@ -249,6 +254,9 @@ async function api(path, options = {}) {
     ...options,
     headers: requestHeaders()
   });
+  if (response.status === 401 && authSession?.refresh_token && path !== "/api/config") {
+    if (!appConfig?.supabase) await ensureAppConfig();
+  }
   if (
     response.status === 401 &&
     authSession?.refresh_token &&
@@ -468,43 +476,80 @@ function renderTransaction(record, details = {}) {
 }
 
 async function loadHealth() {
-  try {
-    const { body } = await api("/api/health");
-    byId("network-label").textContent = body.network;
+  const loadSequence = ++healthLoadSequence;
+  const wasSignedIn = Boolean(authSession?.access_token);
+  const endpoint = wasSignedIn ? "/api/health/details" : "/api/health/console";
+  byId("network-label").textContent = "Loading Mezo snapshot…";
+  byId("network-status").textContent = "READING";
+  byId("network-status").className = "status-pill pending";
+  byId("trove-status").textContent = "Reading protocol state…";
+  byId("trove-status").className = "status-pill pending";
+
+  const renderSnapshot = (snapshot) => {
+    if (loadSequence !== healthLoadSequence) return;
+    byId("network-label").textContent = snapshot.network;
     byId("network-status").textContent = "CONNECTED";
     byId("network-status").className = "status-pill success";
-    byId("chain-name").textContent = body.network;
-    byId("chain-id").textContent = String(body.chainId);
-    byId("block-number").textContent = body.blockNumber;
-
-    const { body: snapshot } = await api("/api/health/console");
-    walletState = { ...body, ...snapshot };
+    byId("chain-name").textContent = snapshot.network;
+    byId("chain-id").textContent = String(snapshot.chainId);
+    byId("block-number").textContent = snapshot.blockNumber;
+    walletState = snapshot;
     renderHealthDetails(snapshot);
+  };
 
-    const accessToken = authSession?.access_token;
-    if (!accessToken) return;
-    try {
-      const { body: details } = await api("/api/health/details");
-      if (authSession?.access_token !== accessToken) return;
-      walletState = { ...body, ...details };
-      renderHealthDetails(details);
-    } catch (error) {
-      if (authSession?.access_token !== accessToken) return;
-      const notice = byId("setup-notice");
-      notice.classList.remove("hidden");
-      notice.textContent = "Read-only operator status is shown. Protected payment controls and policy details could not be loaded.";
-      byId("request-button").disabled = true;
-      console.error("Protected Mezo health details could not be loaded:", error);
-    }
+  try {
+    const { body: snapshot } = await api(endpoint);
+    if (loadSequence !== healthLoadSequence) return;
+    renderSnapshot(snapshot);
   } catch (error) {
-    byId("network-status").textContent = "OFFLINE";
-    byId("network-status").className = "status-pill danger";
-    byId("network-label").textContent = "Mezo RPC unavailable";
-    byId("setup-notice").classList.remove("hidden");
-    console.error("Mezo network status could not be loaded:", error);
-    byId("setup-notice").textContent = "Mezo network status is temporarily unavailable. Please try again.";
-    toast("Mezo network status is temporarily unavailable.", "error");
+    if (loadSequence !== healthLoadSequence) return;
+    if (wasSignedIn) {
+      try {
+        const { body: publicSnapshot } = await api("/api/health/console");
+        if (loadSequence !== healthLoadSequence) return;
+        renderSnapshot(publicSnapshot);
+        if (authSession?.access_token) {
+          const notice = byId("setup-notice");
+          notice.classList.remove("hidden");
+          notice.textContent = "Read-only operator status is shown. Protected payment controls and policy details could not be loaded.";
+          byId("request-button").disabled = true;
+          console.error("Protected Mezo health details could not be loaded:", error);
+        }
+      } catch (publicError) {
+        if (loadSequence !== healthLoadSequence) return;
+        renderHealthUnavailable(publicError);
+      }
+      return;
+    }
+    if (wasSignedIn !== Boolean(authSession?.access_token)) return;
+    renderHealthUnavailable(error);
   }
+}
+
+function renderHealthUnavailable(error) {
+  byId("network-status").textContent = "UNAVAILABLE";
+  byId("network-status").className = "status-pill danger";
+  byId("network-label").textContent = "Mezo status unavailable";
+  byId("chain-name").textContent = "Mezo Testnet";
+  byId("chain-id").textContent = "—";
+  byId("block-number").textContent = "—";
+  byId("native-balance").textContent = "— BTC";
+  byId("wallet-address").textContent = "Operator status unavailable";
+  byId("musd-card").classList.add("hidden");
+  byId("trove-status").textContent = "Protocol data unavailable";
+  byId("trove-status").className = "status-pill danger";
+  byId("trove-icr").textContent = "—";
+  byId("trove-collateral").textContent = "—";
+  byId("trove-debt").textContent = "—";
+  byId("trove-policy").textContent = "Latest protocol data could not be read; payment controls are paused.";
+  byId("request-button").disabled = true;
+  const notice = byId("setup-notice");
+  notice.classList.remove("hidden");
+  notice.replaceChildren(
+    document.createTextNode("Mezo protocol status could not be loaded. Payment controls are paused; retry when the RPC is available. "),
+    actionButton("Retry status", "button button-quiet", () => void loadHealth())
+  );
+  console.error("Mezo protocol snapshot could not be loaded:", error);
 }
 
 function renderHealthDetails(body) {
@@ -630,15 +675,23 @@ function updateUnit() {
 }
 
 async function loadAudit() {
+  const loadSequence = ++auditLoadSequence;
   if (!authSession?.access_token) {
     byId("audit-state").textContent = "Sign-in required";
     byId("audit-state").className = "stat-value compact";
     byId("audit-events").textContent = "Sign in to your merchant account to view the authorization audit.";
+    byId("refresh-audit").disabled = true;
     return;
   }
   const list = byId("audit-events");
+  byId("refresh-audit").disabled = true;
+  byId("audit-state").textContent = "Loading…";
+  byId("audit-state").className = "stat-value compact";
+  list.setAttribute("aria-busy", "true");
+  if (!list.children.length) list.textContent = "Loading audit trail…";
   try {
     const { body } = await api("/api/audit");
+    if (loadSequence !== auditLoadSequence || !authSession?.access_token) return;
     byId("audit-state").textContent = body.verified ? "Integrity verified" : "Integrity error";
     byId("audit-state").className = `stat-value compact ${body.verified ? "text-good" : "text-bad"}`;
     list.innerHTML = "";
@@ -676,6 +729,13 @@ async function loadAudit() {
       list.append(item);
     }
   } catch (error) {
+    if (loadSequence !== auditLoadSequence) return;
+    if (!authSession?.access_token) {
+      byId("audit-state").textContent = "Sign-in required";
+      byId("audit-state").className = "stat-value compact";
+      list.textContent = "Sign in to your merchant account to view the authorization audit.";
+      return;
+    }
     console.error("Authorization audit could not be loaded:", error);
     byId("audit-state").textContent = "Unavailable";
     byId("audit-state").className = "stat-value compact text-bad";
@@ -684,7 +744,17 @@ async function loadAudit() {
     message.className = "audit-empty";
     message.textContent = `Audit trail could not be loaded: ${error.message}`;
     list.append(message, actionButton("Retry", "button button-quiet", () => void loadAudit()));
+  } finally {
+    if (loadSequence === auditLoadSequence) {
+      list.removeAttribute("aria-busy");
+      byId("refresh-audit").disabled = !authSession?.access_token;
+    }
   }
+}
+
+function ensureAppConfig() {
+  if (!appConfigPromise) appConfigPromise = loadAppConfig();
+  return appConfigPromise;
 }
 
 async function requestPayment(event) {
@@ -696,7 +766,10 @@ async function requestPayment(event) {
     return;
   }
   const button = byId("request-button");
+  const label = button.querySelector("span");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  if (label) label.textContent = "Checking policy…";
   try {
     const { body } = await api("/api/payments", {
       method: "POST",
@@ -715,7 +788,10 @@ async function requestPayment(event) {
   } catch (error) {
     showError(error.message);
   } finally {
-    button.disabled = false;
+    button.disabled = !authSession?.access_token ||
+      !walletState?.policy?.configuredRecipients?.length;
+    button.removeAttribute("aria-busy");
+    if (label) label.textContent = "Check policy & prepare";
   }
 }
 
@@ -882,8 +958,11 @@ function formatDisplayAtomic(atomic, fractionDigits = 2, decimals = 18) {
 }
 
 async function loadMerchantWorkspace() {
+  const loadSequence = ++merchantLoadSequence;
+  const wasSignedIn = Boolean(authSession?.access_token);
   try {
     const { body: merchantBody } = await api("/api/merchant");
+    if (loadSequence !== merchantLoadSequence) return;
     byId("merchant-name").textContent = merchantBody.name;
     byId("merchant-display-name").value = merchantBody.name;
     const isMerchantSignedIn = Boolean(authSession?.access_token);
@@ -904,20 +983,31 @@ async function loadMerchantWorkspace() {
     byId("merchant-name-save").disabled = !walletVerified;
     byId("invoice-button").disabled = !walletVerified;
     byId("x402-resource-button").disabled = !walletVerified;
+    byId("refresh-invoices").disabled = !walletVerified;
     if (!authSession?.access_token) {
+      merchantInvoices = [];
       byId("invoice-list").textContent = "Sign in with Supabase to view your merchant invoices.";
       byId("merchant-x402-resources").textContent = "Sign in and verify your wallet to set up product integrations.";
       return;
     }
     if (!walletVerified) {
+      merchantInvoices = [];
       byId("invoice-list").textContent = "Verify your own receiving wallet to create invoices.";
       byId("merchant-x402-resources").textContent = "Verify your receiving wallet to create x402 integrations.";
       return;
     }
-    const { body: invoiceBody } = await api("/api/invoices");
-    renderInvoiceList(invoiceBody.invoices);
-    await loadMerchantX402Resources();
+    const results = await Promise.allSettled([
+      loadMerchantInvoices(loadSequence),
+      loadMerchantX402Resources(loadSequence)
+    ]);
+    if (loadSequence !== merchantLoadSequence) return;
+    const resourceResult = results[1];
+    if (resourceResult.status === "rejected" && authSession?.access_token) {
+      renderMerchantX402LoadError(resourceResult.reason);
+    }
   } catch (error) {
+    if (loadSequence !== merchantLoadSequence) return;
+    if (wasSignedIn && !authSession?.access_token) return;
     console.error("Merchant workspace could not be loaded:", error);
     const list = byId("invoice-list");
     list.replaceChildren();
@@ -928,9 +1018,72 @@ async function loadMerchantWorkspace() {
   }
 }
 
-async function loadMerchantX402Resources() {
-  const { body } = await api("/api/merchant/x402/resources");
-  renderMerchantX402Resources(body.resources);
+async function loadMerchantInvoices(workspaceSequence) {
+  const list = byId("invoice-list");
+  const refreshButton = byId("refresh-invoices");
+  const sequence = workspaceSequence ?? merchantLoadSequence;
+  if (!authSession?.access_token ||
+      byId("merchant-wallet-connect").dataset.walletVerified !== "true") return;
+  if (!list.children.length) list.textContent = "Loading invoices…";
+  list.setAttribute("aria-busy", "true");
+  refreshButton.disabled = true;
+  refreshButton.setAttribute("aria-busy", "true");
+  try {
+    const { body } = await api("/api/invoices");
+    if (!authSession?.access_token || sequence !== merchantLoadSequence) return;
+    renderInvoiceList(body.invoices);
+  } catch (error) {
+    if (!authSession?.access_token || sequence !== merchantLoadSequence) return;
+    console.error("Merchant invoices could not be loaded:", error);
+    list.replaceChildren();
+    const message = document.createElement("div");
+    message.className = "audit-empty";
+    message.textContent = `Invoices could not be loaded: ${error.message}`;
+    list.append(message, actionButton("Retry", "button button-quiet", () => void loadMerchantInvoices()));
+  } finally {
+    if (sequence === merchantLoadSequence) {
+      list.removeAttribute("aria-busy");
+      refreshButton.removeAttribute("aria-busy");
+      refreshButton.disabled = !authSession?.access_token ||
+        byId("merchant-wallet-connect").dataset.walletVerified !== "true";
+    }
+  }
+}
+
+async function loadMerchantX402Resources(workspaceSequence) {
+  const sequence = workspaceSequence ?? merchantLoadSequence;
+  if (!authSession?.access_token) return;
+  const list = byId("merchant-x402-resources");
+  list.setAttribute("aria-busy", "true");
+  if (!list.children.length) list.textContent = "Loading API integrations…";
+  try {
+    const { body } = await api("/api/merchant/x402/resources");
+    if (!authSession?.access_token || sequence !== merchantLoadSequence) return;
+    renderMerchantX402Resources(body.resources);
+  } finally {
+    if (sequence === merchantLoadSequence) list.removeAttribute("aria-busy");
+  }
+}
+
+function renderMerchantX402LoadError(error) {
+  const list = byId("merchant-x402-resources");
+  list.replaceChildren();
+  const message = document.createElement("div");
+  message.className = "audit-empty";
+  message.textContent = `API integrations could not be loaded: ${error?.message ?? String(error)}`;
+  list.append(message, actionButton(
+    "Retry",
+    "button button-quiet",
+    () => void loadMerchantX402Resources().catch(renderMerchantX402LoadError)
+  ));
+}
+
+async function refreshMerchantX402Resources() {
+  try {
+    await loadMerchantX402Resources();
+  } catch (error) {
+    renderMerchantX402LoadError(error);
+  }
 }
 
 function renderMerchantX402Resources(resources) {
@@ -980,6 +1133,8 @@ async function verifyMerchantWallet() {
   }
   const button = byId("merchant-wallet-connect");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Connecting wallet…";
   try {
     await ensureMezoWallet(provider);
     const accounts = await provider.request({ method: "eth_requestAccounts" });
@@ -987,11 +1142,13 @@ async function verifyMerchantWallet() {
     if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
       throw new Error("The wallet did not return a valid EVM account.");
     }
+    button.textContent = "Requesting signature…";
     byId("merchant-wallet-state").textContent = `Requesting a one-time ownership signature for ${shortAddress(address)}…`;
     const { body: challenge } = await api("/api/merchant/wallet/challenge", {
       method: "POST",
       body: JSON.stringify({ address })
     });
+    button.textContent = "Verifying wallet…";
     const signature = await provider.request({
       method: "personal_sign",
       params: [challenge.message, challenge.address]
@@ -1008,6 +1165,10 @@ async function verifyMerchantWallet() {
     toast(error.message, "error");
   } finally {
     button.disabled = !authSession?.access_token;
+    button.removeAttribute("aria-busy");
+    button.textContent = byId("merchant-wallet-connect").dataset.walletVerified === "true"
+      ? "Change wallet"
+      : "Connect & verify";
   }
 }
 
@@ -1058,7 +1219,7 @@ async function createMerchantX402Resource(event) {
       })
     });
     showX402ApiKey(body.apiKey, body.keyWarning);
-    await loadMerchantX402Resources();
+    await refreshMerchantX402Resources();
     toast("x402 endpoint configured for your verified wallet.", "success");
   } catch (error) {
     toast(error.message, "error");
@@ -1075,7 +1236,7 @@ async function rotateMerchantX402Key(resourceId) {
       method: "POST"
     });
     showX402ApiKey(body.apiKey, body.keyWarning);
-    await loadMerchantX402Resources();
+    await refreshMerchantX402Resources();
   } catch (error) {
     toast(error.message, "error");
   }
@@ -1085,7 +1246,7 @@ async function revokeMerchantX402Key(resourceId) {
   if (!window.confirm("Revoke this API key? Your product will stop issuing payment challenges until you create a new key.")) return;
   try {
     await api(`/api/merchant/x402/resources/${encodeURIComponent(resourceId)}/key`, { method: "DELETE" });
-    await loadMerchantX402Resources();
+    await refreshMerchantX402Resources();
     toast("Merchant API key revoked.", "success");
   } catch (error) {
     toast(error.message, "error");
@@ -1096,7 +1257,7 @@ async function deleteMerchantX402Resource(resourceId) {
   if (!window.confirm("Delete this x402 resource and its key? Its protected endpoint will stop accepting payments.")) return;
   try {
     await api(`/api/merchant/x402/resources/${encodeURIComponent(resourceId)}`, { method: "DELETE" });
-    await loadMerchantX402Resources();
+    await refreshMerchantX402Resources();
     toast("x402 resource and credential deleted.", "success");
   } catch (error) {
     toast(error.message, "error");
@@ -1122,16 +1283,27 @@ function renderAuthState(message) {
     byId("merchant-wallet-connect").dataset.walletVerified = "false";
     byId("merchant-name-save").disabled = true;
     byId("x402-resource-button").disabled = true;
+    byId("refresh-invoices").disabled = true;
+    merchantInvoices = [];
+    byId("invoice-list").textContent = "Sign in with Supabase to view your merchant invoices.";
+    byId("merchant-x402-resources").textContent = "Sign in and verify your wallet to set up product integrations.";
   }
 }
 
 async function loadAppConfig() {
+  const signInButton = byId("merchant-auth-form").querySelector('button[type="submit"]');
+  const signupButton = byId("auth-signup");
+  signInButton.disabled = true;
+  signupButton.disabled = true;
+  signInButton.textContent = "Loading…";
+  signupButton.textContent = "Loading…";
   try {
     appConfig = (await api("/api/config")).body;
     renderAuthState();
     if (!appConfig.supabase && authSession) {
       authSession = undefined;
       localStorage.removeItem("relayguard.authSession");
+      renderAuthState();
     }
     byId("x402-endpoint").textContent = new URL(appConfig.x402.endpoint, window.location.origin).pathname;
     byId("x402-price").textContent = appConfig.x402.enabled
@@ -1142,25 +1314,49 @@ async function loadAppConfig() {
       byId("x402-result").textContent = "Enable X402_ENABLED and set X402_PAY_TO to use the paid API resource.";
       byId("x402-result").classList.remove("hidden");
     }
+    signInButton.textContent = "Sign in";
+    signupButton.textContent = "Create account";
+    signInButton.disabled = !appConfig.supabase;
+    signupButton.disabled = !appConfig.supabase;
   } catch (error) {
     console.error("Application configuration could not be loaded:", error);
     renderAuthState("Merchant services are temporarily unavailable. Please refresh and try again.");
+    const retry = actionButton("Retry settings", "button button-quiet", () => {
+      appConfigPromise = undefined;
+      void ensureAppConfig();
+    });
+    byId("auth-state").append(document.createTextNode(" "), retry);
     byId("pay-x402-resource").disabled = true;
     byId("x402-price").textContent = "Configuration unavailable";
+    signInButton.textContent = "Sign in";
+    signupButton.textContent = "Create account";
+    signInButton.disabled = true;
+    signupButton.disabled = true;
   }
 }
 
 async function submitMerchantAuth(event) {
   event.preventDefault();
-  if (!appConfig?.supabase) return;
+  if (!appConfig?.supabase) {
+    renderAuthState("Merchant services are still loading or unavailable. Please wait and try again.");
+    return;
+  }
+  const submitButton = byId("merchant-auth-form").querySelector('button[type="submit"]');
+  const signupButton = byId("auth-signup");
   const email = byId("auth-email").value.trim();
   const password = byId("auth-password").value;
   const isSignup = event.submitter?.id === "auth-signup";
+  const originalSubmitLabel = submitButton.textContent;
+  const originalSignupLabel = signupButton.textContent;
   const endpoint = isSignup
     ? `${appConfig.supabase.url}/auth/v1/signup`
     : `${appConfig.supabase.url}/auth/v1/token?grant_type=password`;
+  submitButton.disabled = true;
+  signupButton.disabled = true;
+  if (isSignup) signupButton.textContent = "Creating account…";
+  else submitButton.textContent = "Signing in…";
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetchWithTimeout(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -1179,37 +1375,45 @@ async function submitMerchantAuth(event) {
       byId("auth-email").value = "";
       byId("auth-password").value = "";
       renderAuthState();
-      await loadHealth();
-      await loadMerchantWorkspace();
-      await loadAudit().catch((error) => console.error("Audit refresh failed:", error));
+      await Promise.all([
+        loadHealth(),
+        loadMerchantWorkspace(),
+        loadAudit()
+      ]);
       toast("Merchant account connected.", "success");
     } else {
       renderAuthState("Account created. Check your email to verify it, then sign in.");
     }
   } catch (error) {
     renderAuthState(error.message);
+  } finally {
+    submitButton.disabled = false;
+    signupButton.disabled = false;
+    submitButton.textContent = originalSubmitLabel;
+    signupButton.textContent = originalSignupLabel;
   }
 }
 
 async function signOutMerchant() {
-  if (authSession?.access_token && appConfig?.supabase) {
-    await fetch(`${appConfig.supabase.url}/auth/v1/logout`, {
+  const previousSession = authSession;
+  authSession = undefined;
+  localStorage.removeItem("relayguard.authSession");
+  renderAuthState();
+  if (previousSession?.access_token && appConfig?.supabase) {
+    void fetchWithTimeout(`${appConfig.supabase.url}/auth/v1/logout`, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${authSession.access_token}`,
+        authorization: `Bearer ${previousSession.access_token}`,
         apikey: appConfig.supabase.publishableKey
       }
     }).catch((error) => console.warn("Supabase sign-out request failed:", error));
   }
-  authSession = undefined;
-  localStorage.removeItem("relayguard.authSession");
-  renderAuthState();
-  await loadHealth();
-  await loadMerchantWorkspace();
+  await Promise.all([loadHealth(), loadMerchantWorkspace(), loadAudit()]);
 }
 
 function renderInvoiceList(invoices) {
   const list = byId("invoice-list");
+  merchantInvoices = invoices;
   list.innerHTML = "";
   if (!invoices.length) {
     const empty = document.createElement("div");
@@ -1242,7 +1446,10 @@ function renderInvoiceList(invoices) {
 async function createInvoice(event) {
   event.preventDefault();
   const button = byId("invoice-button");
+  const label = button.querySelector("span");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  if (label) label.textContent = "Creating…";
   try {
     const { body } = await api("/api/invoices", {
       method: "POST",
@@ -1256,8 +1463,16 @@ async function createInvoice(event) {
     display.innerHTML = "";
     display.classList.remove("hidden");
     const qr = document.createElement("img");
-    qr.src = body.qrUrl;
     qr.alt = "QR code for the newly created MUSD invoice";
+    qr.loading = "eager";
+    const qrStatus = document.createElement("small");
+    qrStatus.textContent = "Loading QR…";
+    qr.addEventListener("load", () => qrStatus.remove(), { once: true });
+    qr.addEventListener("error", () => {
+      qr.remove();
+      qrStatus.textContent = "QR image unavailable. Open the checkout link below.";
+      qrStatus.classList.add("danger");
+    }, { once: true });
     const details = document.createElement("div");
     details.className = "created-invoice-details";
     const heading = document.createElement("strong");
@@ -1272,13 +1487,20 @@ async function createInvoice(event) {
       toast("Checkout link copied.", "success");
     });
     details.append(heading, link, copy);
-    display.append(qr, details);
-    renderInvoiceList([body.invoice, ...(await api("/api/invoices")).body.invoices.filter((item) => item.id !== body.invoice.id)]);
+    display.append(qr, qrStatus, details);
+    qr.src = body.qrUrl;
+    renderInvoiceList([
+      body.invoice,
+      ...merchantInvoices.filter((item) => item.id !== body.invoice.id)
+    ]);
     toast("MUSD checkout invoice created.", "success");
+    void loadMerchantInvoices();
   } catch (error) {
     toast(error.message, "error");
   } finally {
     button.disabled = false;
+    button.removeAttribute("aria-busy");
+    if (label) label.textContent = "Create invoice";
   }
 }
 
@@ -1290,7 +1512,8 @@ async function loadCheckoutPage() {
   const loadingTitle = document.createElement("strong");
   loadingTitle.textContent = "Loading invoice";
   const loadingMessage = document.createElement("span");
-  loadingMessage.textContent = "Retrieving payment details from Mezo.";
+  loadingMessage.textContent = "Retrieving invoice and merchant details.";
+  byId("checkout-loading").setAttribute("aria-busy", "true");
   byId("checkout-loading").append(loadingTitle, loadingMessage);
   const invoiceId = decodeURIComponent(window.location.pathname.slice("/pay/".length));
   try {
@@ -1300,6 +1523,7 @@ async function loadCheckoutPage() {
     ]);
     checkoutInvoice = invoiceBody.invoice;
     byId("checkout-loading").classList.add("hidden");
+    byId("checkout-loading").setAttribute("aria-busy", "false");
     byId("checkout-content").classList.remove("hidden");
     byId("checkout-merchant-name").textContent = checkoutInvoice.merchantName;
     byId("checkout-amount").textContent = `${formatAtomic(checkoutInvoice.amountAtomic)} MUSD`;
@@ -1307,7 +1531,19 @@ async function loadCheckoutPage() {
     byId("checkout-merchant-address").textContent = shortAddress(checkoutInvoice.merchantAddress);
     byId("checkout-merchant-address").title = checkoutInvoice.merchantAddress;
     byId("checkout-expiry").textContent = new Date(checkoutInvoice.expiresAt).toLocaleString();
-    byId("checkout-qr").src = `/api/invoices/${encodeURIComponent(invoiceId)}/qr`;
+    const qr = byId("checkout-qr");
+    const qrHint = qr.parentElement.querySelector("small");
+    qr.onerror = () => {
+      qr.classList.add("hidden");
+      qrHint.textContent = "QR image unavailable. Reload this checkout or use the page URL.";
+      qrHint.classList.add("danger");
+    };
+    qr.onload = () => {
+      qr.classList.remove("hidden");
+      qrHint.textContent = "Scan with a wallet to open this invoice";
+      qrHint.classList.remove("danger");
+    };
+    qr.src = `/api/invoices/${encodeURIComponent(invoiceId)}/qr`;
     const status = byId("checkout-state-tag");
     status.textContent = checkoutInvoice.status === "paid"
       ? "PAYMENT CONFIRMED"
@@ -1365,6 +1601,7 @@ async function loadCheckoutPage() {
       byId("checkout-wallet-state").textContent = "MUSD contract is not configured for this Mezo testnet.";
     }
   } catch (error) {
+    byId("checkout-loading").setAttribute("aria-busy", "false");
     byId("checkout-loading").replaceChildren();
     const message = document.createElement("strong");
     message.textContent = "Invoice could not be loaded";
@@ -1525,6 +1762,8 @@ async function reviewTroveOpen() {
   }
   const button = byId("checkout-borrow-review");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Checking terms & gas…";
   byId("checkout-borrow-review-result").classList.add("hidden");
   byId("checkout-borrow-ack-wrap").classList.add("hidden");
   byId("checkout-borrow-confirm").classList.add("hidden");
@@ -1541,6 +1780,8 @@ async function reviewTroveOpen() {
     setBorrowStatus(`${error.message} No transaction was submitted.`, "error");
   } finally {
     button.disabled = false;
+    button.removeAttribute("aria-busy");
+    button.textContent = "Review testnet trove";
   }
 }
 
@@ -1550,6 +1791,8 @@ async function confirmTroveOpen() {
   if (!provider || !checkoutWallet || !quote || !byId("checkout-borrow-ack").checked) return;
   const button = byId("checkout-borrow-confirm");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Rechecking quote…";
   byId("checkout-borrow-review").disabled = true;
   try {
     const result = await openMezoTestnetTrove(
@@ -1557,7 +1800,12 @@ async function confirmTroveOpen() {
       checkoutWallet,
       quote,
       checkoutInvoice.amountAtomic,
-      (message) => setBorrowStatus(message)
+      (message) => {
+        setBorrowStatus(message);
+        button.textContent = message.includes("submitted")
+          ? "Waiting for Mezo…"
+          : "Confirm in wallet…";
+      }
     );
     const balance = BigInt(result.musdBalanceAtomic);
     const required = BigInt(checkoutInvoice.amountAtomic);
@@ -1582,6 +1830,9 @@ async function confirmTroveOpen() {
     setBorrowStatus(`${error.message} Do not retry if the wallet already submitted a transaction; check its status first.`, "error");
     button.disabled = false;
     byId("checkout-borrow-review").disabled = false;
+    button.textContent = "Confirm & open trove in wallet";
+  } finally {
+    button.removeAttribute("aria-busy");
   }
 }
 
@@ -1603,6 +1854,7 @@ async function pollCheckoutInvoice() {
   const button = byId("connect-pay-button");
   button.disabled = true;
   button.textContent = "Verifying payment…";
+  button.setAttribute("aria-busy", "true");
   const transactionHash = checkoutInvoice.transactionReference;
   let attempt = 0;
   try {
@@ -1649,6 +1901,7 @@ async function pollCheckoutInvoice() {
     }
   } finally {
     checkoutVerificationInProgress = false;
+    button.removeAttribute("aria-busy");
     if (checkoutInvoice?.status === "submitted") {
       button.disabled = false;
       button.textContent = "Check payment status";
@@ -1665,6 +1918,8 @@ async function payCheckout() {
   }
   const button = byId("connect-pay-button");
   button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Connecting wallet…";
   checkoutAuthorization = undefined;
   let broadcastHash;
   try {
@@ -1672,6 +1927,7 @@ async function payCheckout() {
     const accounts = await provider.request({ method: "eth_requestAccounts" });
     checkoutWallet = accounts[0];
     if (!checkoutWallet) throw new Error("Wallet did not return an account.");
+    button.textContent = "Checking MUSD & BTC…";
     const token = await api("/api/merchant");
     if (typeof token.body.tokenAddress !== "string" ||
         token.body.tokenAddress.toLowerCase() !== MEZO_TESTNET_MUSD.toLowerCase()) {
@@ -1699,6 +1955,7 @@ async function payCheckout() {
       return;
     }
     byId("checkout-wallet-state").textContent = `Connected ${shortAddress(checkoutWallet)} · MUSD balance and estimated BTC gas checked. Requesting exact payment authorization…`;
+    button.textContent = "Requesting authorization…";
     const { body: authorizedBody } = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/authorize`, {
       method: "POST",
       body: JSON.stringify({ payerAddress: checkoutWallet })
@@ -1708,6 +1965,7 @@ async function payCheckout() {
     const amountHex = BigInt(checkoutInvoice.amountAtomic).toString(16).padStart(64, "0");
     const addressHex = checkoutInvoice.merchantAddress.slice(2).toLowerCase().padStart(64, "0");
     const data = `0xa9059cbb${addressHex}${amountHex}`;
+    button.textContent = "Confirm in wallet…";
     byId("checkout-wallet-state").textContent = "Review the exact MUSD transfer in your wallet and confirm to submit it to Mezo Testnet.";
     const transactionHash = await provider.request({
       method: "eth_sendTransaction",
@@ -1727,6 +1985,7 @@ async function payCheckout() {
       })
     });
     checkoutInvoice = submittedBody.invoice;
+    button.textContent = "Submitted · verifying…";
     byId("checkout-wallet-state").textContent = `Submitted ${shortAddress(transactionHash)}. Waiting for the chain receipt…`;
     await pollCheckoutInvoice();
     return;
@@ -1783,7 +2042,14 @@ async function payCheckout() {
     setCheckoutMessage(message, "notice");
     byId("checkout-result").classList.remove("hidden");
   } finally {
-    button.disabled = !["open", "authorized"].includes(checkoutInvoice?.status);
+    button.removeAttribute("aria-busy");
+    const canContinue = ["open", "authorized"].includes(checkoutInvoice?.status);
+    button.disabled = !canContinue;
+    if (canContinue) {
+      button.textContent = checkoutInvoice.status === "authorized"
+        ? "Connect wallet & continue"
+        : "Connect wallet & pay with MUSD";
+    }
   }
 }
 
@@ -1794,7 +2060,14 @@ document.querySelectorAll("[data-view]").forEach((link) => {
     if (!["console", "merchant", "faq"].includes(view)) return;
     history.replaceState(null, "", view === "console" ? "/" : `/#${view}`);
     setView(view);
-    if (view === "merchant") loadMerchantWorkspace();
+    if (view === "console") {
+      void ensureAppConfig();
+      void loadHealth();
+      void loadAudit();
+    } else if (view === "merchant") {
+      void ensureAppConfig();
+      void loadMerchantWorkspace();
+    }
   });
 });
 const faqSearch = byId("faq-search");
@@ -1842,7 +2115,7 @@ document.addEventListener("keydown", (event) => {
 });
 byId("invoice-form").addEventListener("submit", createInvoice);
 byId("asset").addEventListener("change", updateUnit);
-byId("refresh-invoices").addEventListener("click", loadMerchantWorkspace);
+byId("refresh-invoices").addEventListener("click", () => void loadMerchantInvoices());
 byId("merchant-wallet-connect").addEventListener("click", () => void verifyMerchantWallet());
 byId("merchant-name-save").addEventListener("click", () => void saveMerchantName());
 byId("merchant-x402-form").addEventListener("submit", createMerchantX402Resource);
@@ -1879,15 +2152,17 @@ byId("pay-x402-resource").addEventListener("click", async (event) => {
 if (window.location.pathname.startsWith("/pay/")) {
   loadCheckoutPage();
 } else {
-  loadAppConfig();
   const initialView = ["#merchant", "#faq"].includes(window.location.hash)
     ? window.location.hash.slice(1)
     : "console";
   setView(initialView);
-  loadHealth();
-  loadAudit();
-  if (authSession?.access_token) {
-    restoreCurrentPayment();
+  if (initialView === "console") {
+    void ensureAppConfig();
+    void loadHealth();
+    void loadAudit();
+    if (authSession?.access_token) restoreCurrentPayment();
+  } else if (initialView === "merchant") {
+    void ensureAppConfig();
+    void loadMerchantWorkspace();
   }
-  if (initialView === "merchant") loadMerchantWorkspace();
 }

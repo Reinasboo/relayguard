@@ -31,7 +31,7 @@
       <main class="main">
         <header class="topbar">
           <div class="crumb">RelayGuard <span>/</span> <span id="view-crumb">Payment workspace</span></div>
-          <div class="network-chip"><span class="live-dot"></span><span id="network-label">Connecting to Mezo…</span></div>
+          <div class="network-chip"><span class="live-dot"></span><span id="network-label" role="status" aria-live="polite">Connecting to Mezo…</span></div>
         </header>
 
         <div id="console-view">
@@ -70,7 +70,7 @@
           </article>
           <article class="stat-card">
             <div class="stat-heading"><span>AUTHORIZATION LOG</span><span class="tiny-icon">⌁</span></div>
-            <div class="stat-value compact" id="audit-state">Sign-in required</div>
+            <div class="stat-value compact" id="audit-state" role="status" aria-live="polite">Sign-in required</div>
             <div class="stat-sub">Hash-linked audit events</div>
           </article>
         </section>
@@ -151,7 +151,7 @@
           </article>
           <article class="panel audit-panel">
             <div class="panel-heading"><div><div class="eyebrow">TAMPER-EVIDENT RECORD</div><h2>Audit trail</h2></div><button id="refresh-audit" class="icon-button" aria-label="Refresh audit trail">↻</button></div>
-            <div id="audit-events" class="audit-events"><div class="audit-empty">No recorded decisions yet.</div></div>
+            <div id="audit-events" class="audit-events" aria-live="polite"><div class="audit-empty">No recorded decisions yet.</div></div>
           </article>
         </section>
         </div>
@@ -220,7 +220,7 @@
             </article>
             <article class="panel invoice-list-panel">
               <div class="panel-heading"><div><div class="eyebrow">PAYMENT ACTIVITY</div><h2>Recent invoices</h2></div><button id="refresh-invoices" class="icon-button" aria-label="Refresh invoices">↻</button></div>
-              <div id="invoice-list" class="invoice-list"><div class="audit-empty">Loading merchant invoices…</div></div>
+              <div id="invoice-list" class="invoice-list" aria-live="polite"><div class="audit-empty">Loading merchant invoices…</div></div>
             </article>
           </section>
           <div class="merchant-note"><span class="merchant-note-icon">i</span><span>Payments are made in MUSD on Mezo Testnet. Each invoice settles directly to your verified wallet. The buyer reviews and authorizes the transfer in their own wallet.</span></div>
@@ -238,7 +238,7 @@
               <button id="x402-resource-button" class="button button-primary" type="submit" disabled><span>Create integration</span><span>→</span></button>
             </form>
             <div id="x402-resource-credential" class="x402-resource-credential hidden" role="status" aria-live="polite"></div>
-            <div id="merchant-x402-resources" class="merchant-x402-resources"><div class="audit-empty">Sign in and verify your wallet to set up product integrations.</div></div>
+            <div id="merchant-x402-resources" class="merchant-x402-resources" aria-live="polite"><div class="audit-empty">Sign in and verify your wallet to set up product integrations.</div></div>
           </section>
           <article class="panel x402-panel">
             <div class="panel-heading"><div><div class="eyebrow">AGENT CHECKOUT · x402</div><h2>Unlock an agent integration brief</h2></div><span class="workflow-mark">03</span></div>
@@ -389,14 +389,14 @@
           <a class="brand checkout-brand" href="/"><img class="brand-mark" src="/relayguard-mark.svg" alt=""><span>RelayGuard</span></a>
           <div class="checkout-card panel">
             <div class="checkout-topline"><span class="eyebrow">MUSD PAYMENT</span><span id="checkout-state-tag" class="verified-tag">AWAITING PAYMENT</span></div>
-            <div id="checkout-loading" class="empty-state"><div class="empty-orbit">◈</div><strong>Loading invoice</strong><span>Retrieving payment details from Mezo.</span></div>
+            <div id="checkout-loading" class="empty-state" role="status" aria-live="polite" aria-busy="true"><div class="empty-orbit">◈</div><strong>Loading invoice</strong><span>Retrieving invoice and merchant details.</span></div>
             <div id="checkout-content" class="hidden">
               <div class="checkout-merchant"><span class="merchant-avatar">M</span><div><small>PAYING</small><strong id="checkout-merchant-name"></strong></div></div>
               <div class="checkout-amount" id="checkout-amount"></div>
               <div class="checkout-description" id="checkout-description"></div>
               <div class="checkout-qr-wrap"><img id="checkout-qr" alt="QR code for this MUSD checkout"><small>Scan with a wallet to open this invoice</small></div>
               <div class="checkout-facts"><div><span>Network</span><strong>Mezo Testnet</strong></div><div><span>Asset</span><strong>MUSD · ERC-20</strong></div><div><span>Merchant</span><code id="checkout-merchant-address"></code></div><div><span>Expires</span><strong id="checkout-expiry"></strong></div></div>
-              <div id="checkout-wallet-state" class="notice">Connect a Mezo-compatible wallet to check your MUSD balance and pay.</div>
+              <div id="checkout-wallet-state" class="notice" role="status" aria-live="polite">Connect a Mezo-compatible wallet to check your MUSD balance and pay.</div>
               <div id="checkout-preflight" class="checkout-preflight hidden" role="status" aria-live="polite"></div>
               <button id="connect-pay-button" class="button button-primary" type="button">Connect wallet &amp; pay with MUSD</button>
               <section id="checkout-borrow-panel" class="checkout-borrow hidden" aria-labelledby="checkout-borrow-heading">

@@ -64,7 +64,7 @@ RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and p
 
 150% is RelayGuard's review buffer; 110% is Mezo's minimum. These operator controls never open a trove or borrow/add collateral.
 
-**Status:** deployed policy; 45 automated tests pass, including controlled threshold and RPC-failure cases. The new buyer checkout preflight and optional Testnet trove-opening flow are implemented but not yet manually wallet-tested; no borrow transaction was broadcast for this feature.
+**Status:** the policy and buyer checkout preflight/optional Testnet trove-opening flow are deployed; 45 automated tests pass, including controlled threshold and RPC-failure cases. A production browser mock reached the underfunded state and rendered a generated QR, but real browser-wallet signing, a valid production invoice QR, and the borrow review with a real wallet remain unverified. No borrow transaction was broadcast for this feature.
 
 ---
 
@@ -75,7 +75,7 @@ RelayGuard reads the configured operator's trove status, Mezo `PriceFeed`, and p
 - The hash-linked audit chain commits the policy and evidence digests; tampered stored evidence fails verification.
 - Approval and execution stop if the risk tier changes. Operators can cancel stale requests; reviewers may still reject them.
 
-The policy uses the operator's trove as a spending signal; it does not open or modify that trove. Separately, an underfunded buyer may opt into a Testnet-only, wallet-confirmed trove-opening flow. Borrowing and invoice payment require separate reviews and transactions; production wallet testing remains outstanding.
+The policy uses the operator's trove as a spending signal; it does not open or modify that trove. Separately, an underfunded buyer may opt into a Testnet-only, wallet-confirmed trove-opening flow. Borrowing and invoice payment require separate reviews and transactions; real production wallet testing remains outstanding.
 
 ---
 

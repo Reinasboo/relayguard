@@ -1,0 +1,4 @@
+reportlab
+Pillow
+PyMuPDF
+fonttools

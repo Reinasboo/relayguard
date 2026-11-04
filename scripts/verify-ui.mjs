@@ -26,7 +26,7 @@ try {
   await page.waitForTimeout(2500);
   await page.locator("#proof").scrollIntoViewIfNeeded();
   await page.waitForFunction(() => !document.getElementById("refresh-evidence").disabled, null, { timeout: 45_000 });
-  await page.screenshot({ path: `${output}/02-mezo-evidence.png` });
+  await page.locator("#proof").screenshot({ path: `${output}/02-mezo-evidence.png` });
   await writeFile(`${output}/live-evidence.json`, await page.locator("#raw-evidence").textContent());
   await page.waitForTimeout(3000);
   const cases = [["healthy", "Within spending policy"], ["review", "Human approval required"], ["blocked", "Payment blocked"], ["unavailable", "MUSD spending paused"]];
@@ -35,7 +35,7 @@ try {
     await page.locator(`[data-scenario="${scenario}"]`).click();
     await page.getByText(title, { exact: true }).waitFor();
     await page.waitForTimeout(2000);
-    await page.screenshot({ path: `${output}/policy-${scenario}.png` });
+    await page.locator("#policy").screenshot({ path: `${output}/policy-${scenario}.png` });
   }
   await page.locator('[data-scenario="healthy"]').click();
   await page.locator("#preview-amount").fill("26");
@@ -43,7 +43,7 @@ try {
   await page.getByText("This payment exceeds the 25 MUSD per-payment limit.", { exact: true }).waitFor();
   await page.locator("#preview-amount").fill("1.00"); await page.locator("#run-policy").click();
   await page.getByText("Within spending policy", { exact: true }).waitFor();
-  await page.screenshot({ path: `${output}/03-policy-lab.png` });
+  await page.locator("#policy").screenshot({ path: `${output}/03-policy-lab.png` });
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${origin}/review`, { waitUntil: "domcontentloaded" });

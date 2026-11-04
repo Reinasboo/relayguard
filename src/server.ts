@@ -1550,6 +1550,8 @@ app.use(async (req: Request, res: Response) => {
       "/mezo-client.js": { name: "mezo-client.js", type: "text/javascript; charset=utf-8" },
       "/x402-client.js": { name: "x402-client.js", type: "text/javascript; charset=utf-8" },
       "/styles.css": { name: "styles.css", type: "text/css; charset=utf-8" },
+      "/experience.css": { name: "experience.css", type: "text/css; charset=utf-8" },
+      "/fonts/manrope.ttf": { name: "fonts/manrope.ttf", type: "font/ttf" },
       "/relayguard-mark.svg": { name: "relayguard-mark.svg", type: "image/svg+xml" }
     };
     const file = files[url.pathname];

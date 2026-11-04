@@ -1,0 +1,237 @@
+{
+  "results": [
+    {
+      "name": "merchant",
+      "width": 320,
+      "fits": true,
+      "overflow": [],
+      "heading": "Get paid in MUSD.Keep your wallet."
+    },
+    {
+      "name": "faq",
+      "width": 320,
+      "fits": true,
+      "overflow": [],
+      "heading": "Good questions.Clear answers."
+    },
+    {
+      "name": "treasury",
+      "width": 320,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, governed by policy."
+    },
+    {
+      "name": "review",
+      "width": 320,
+      "fits": true,
+      "overflow": [],
+      "heading": "Turn MUSDinto paid orders."
+    },
+    {
+      "name": "checkout-error",
+      "width": 320,
+      "fits": true,
+      "overflow": []
+    },
+    {
+      "name": "account-form",
+      "width": 320,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-open",
+      "width": 320,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-paid",
+      "width": 320,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "account-connected",
+      "width": 320,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant",
+      "width": 390,
+      "fits": true,
+      "overflow": [],
+      "heading": "Get paid in MUSD.Keep your wallet."
+    },
+    {
+      "name": "faq",
+      "width": 390,
+      "fits": true,
+      "overflow": [],
+      "heading": "Good questions.Clear answers."
+    },
+    {
+      "name": "treasury",
+      "width": 390,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, governed by policy."
+    },
+    {
+      "name": "review",
+      "width": 390,
+      "fits": true,
+      "overflow": [],
+      "heading": "Turn MUSDinto paid orders."
+    },
+    {
+      "name": "checkout-error",
+      "width": 390,
+      "fits": true,
+      "overflow": []
+    },
+    {
+      "name": "account-form",
+      "width": 390,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-open",
+      "width": 390,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-paid",
+      "width": 390,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "account-connected",
+      "width": 390,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant",
+      "width": 768,
+      "fits": true,
+      "overflow": [],
+      "heading": "Get paid in MUSD.Keep your wallet."
+    },
+    {
+      "name": "faq",
+      "width": 768,
+      "fits": true,
+      "overflow": [],
+      "heading": "Good questions.Clear answers."
+    },
+    {
+      "name": "treasury",
+      "width": 768,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, governed by policy."
+    },
+    {
+      "name": "review",
+      "width": 768,
+      "fits": true,
+      "overflow": [],
+      "heading": "Turn MUSDinto paid orders."
+    },
+    {
+      "name": "checkout-error",
+      "width": 768,
+      "fits": true,
+      "overflow": []
+    },
+    {
+      "name": "account-form",
+      "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-open",
+      "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-paid",
+      "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "account-connected",
+      "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant",
+      "width": 1440,
+      "fits": true,
+      "overflow": [],
+      "heading": "Get paid in MUSD.Keep your wallet."
+    },
+    {
+      "name": "faq",
+      "width": 1440,
+      "fits": true,
+      "overflow": [],
+      "heading": "Good questions.Clear answers."
+    },
+    {
+      "name": "treasury",
+      "width": 1440,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, governed by policy."
+    },
+    {
+      "name": "review",
+      "width": 1440,
+      "fits": true,
+      "overflow": [],
+      "heading": "Turn MUSDinto paid orders."
+    },
+    {
+      "name": "checkout-error",
+      "width": 1440,
+      "fits": true,
+      "overflow": []
+    },
+    {
+      "name": "account-form",
+      "width": 1440,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-open",
+      "width": 1440,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-paid",
+      "width": 1440,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "account-connected",
+      "width": 1440,
+      "fits": true,
+      "fixture": true
+    }
+  ],
+  "errors": []
+}

@@ -146,8 +146,8 @@ evidence = json.loads((CAPTURES / "live-evidence.json").read_text(encoding="utf-
 for x,payment in zip([55,510], evidence["payments"]):
     text(payment["label"],x,365,17,GREEN)
     text(payment["amount"],x,311,37,TEXT,True)
-    text("RPC verified" if payment["verified"] else "Unverified now",x,275,13,GREEN)
-    text(f"Receipt block {payment['blockNumber']}",x,246,12,MUTED)
+    text("RPC verified" if payment["verified"] else "Unverified at this capture",x,275,13,GREEN if payment["verified"] else HexColor("#edc386"))
+    text(f"Receipt block {payment['blockNumber']}" if payment.get("blockNumber") else "Receipt read unavailable; use explorer link",x,246,12,MUTED)
     link("Inspect receipt on Mezo Explorer",f"https://explorer.test.mezo.org/tx/{payment['hash']}",x,210,11)
 rule(181)
 text("Exact token event match",55,151,15,TEXT,True)

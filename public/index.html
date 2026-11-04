@@ -8,9 +8,11 @@
     <link rel="icon" type="image/svg+xml" href="/relayguard-mark.svg">
     <title>RelayGuard | MUSD payments, made practical</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/experience.css">
     <script type="module" src="/app.js"></script>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <div class="shell">
       <aside class="rail" id="rail">
         <a class="brand" href="/" aria-label="RelayGuard home">
@@ -29,10 +31,10 @@
         <div class="rail-foot">BITCOIN-NATIVE PAYMENTS<br><span>MUSD · BTC gas</span></div>
       </aside>
 
-      <main class="main">
+      <main class="main" id="main-content" tabindex="-1">
         <header class="topbar">
           <div class="crumb">RelayGuard <span>/</span> <span id="view-crumb">Payment workspace</span></div>
-          <div class="network-chip"><span class="live-dot"></span><span id="network-label" role="status" aria-live="polite">Connecting to Mezo…</span></div>
+          <div class="network-chip"><span class="live-dot"></span><span id="network-label" role="status" aria-live="polite">Mezo Testnet</span></div>
         </header>
 
         <div id="console-view">

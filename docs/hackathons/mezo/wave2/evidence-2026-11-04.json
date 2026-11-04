@@ -1,7 +1,7 @@
 {
-  "observedAt": 1793783731519,
+  "observedAt": 1793788715186,
   "chainId": 31611,
-  "blockNumber": "16565106",
+  "blockNumber": "16566312",
   "token": {
     "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
     "symbol": "MUSD",
@@ -16,12 +16,12 @@
       "protocol": "mezo-musd-trove",
       "borrower": "0x2D6d690df41807910826e799A34D7fB418480828",
       "chainId": 31611,
-      "blockNumber": "16565106",
-      "observedAt": 1793783724000,
-      "priceAtomic": "78328587960000000000000",
+      "blockNumber": "16566312",
+      "observedAt": 1793788708000,
+      "priceAtomic": "78448091280000000000000",
       "collateralAtomic": "45000000000000000",
-      "debtAtomic": "2002308092083101054880",
-      "icrAtomic": "1760361690659197558"
+      "debtAtomic": "2002311253659415522766",
+      "icrAtomic": "1763044632121148550"
     }
   },
   "payments": [
@@ -39,9 +39,9 @@
       "amountAtomic": "1000000000000000",
       "amount": "0.001 MUSD",
       "hash": "0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c",
-      "verified": true,
-      "status": "verified",
-      "blockNumber": "16372674"
+      "verified": false,
+      "status": "unavailable",
+      "blockNumber": null
     }
   ],
   "payer": "0x2D6d690df41807910826e799A34D7fB418480828",

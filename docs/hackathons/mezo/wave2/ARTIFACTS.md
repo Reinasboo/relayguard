@@ -9,6 +9,7 @@ This PR includes the implementation, tests, deployment configuration, database m
 - [Public AKINDO research and timeline capture](../../../../output/research/)
 - [Audio segments and generated videos](../../../../output/video/)
 - [Validation and limits](VALIDATION.md), [maintainer release checks](RELEASE_CHECKLIST.md)
+- [Visual audit findings and verification](VISUAL_AUDIT.md), [responsive and checkout captures](../../../../output/visual-audit/)
 
 Download videos or the ZIP to inspect them locally. All captured outputs are included in this branch; new output remains ignored by default. Credentials, dependencies, compiled application files and temporary rendering intermediates are excluded.
 

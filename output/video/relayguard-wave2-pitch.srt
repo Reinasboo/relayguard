@@ -1,0 +1,107 @@
+1
+00:00:00,000 --> 00:00:03,678
+RelayGuard turns Mezo MUSD into paid orders and paid API access.
+
+2
+00:00:03,678 --> 00:00:06,353
+A seller needs more than a token balance.
+
+3
+00:00:06,353 --> 00:00:11,368
+They need to know which order was paid, by whom, and for exactly how much.
+
+4
+00:00:11,368 --> 00:00:15,890
+A merchant verifies a receiving wallet and shares an invoice link or QR.
+
+5
+00:00:15,890 --> 00:00:19,716
+The buyer reviews the amount and signs a direct MUSD transfer.
+
+6
+00:00:19,716 --> 00:00:25,281
+RelayGuard marks the invoice paid only when the receipt matches the token, payer, merchant, and amount.
+
+7
+00:00:25,281 --> 00:00:27,715
+The merchant keeps their wallet and storefront.
+
+8
+00:00:27,715 --> 00:00:32,449
+For software agents, the merchant protects an Express API route with x402.
+
+9
+00:00:32,449 --> 00:00:35,604
+An unpaid request returns exact MUSD payment terms.
+
+10
+00:00:35,604 --> 00:00:37,576
+The buyer signs an authorization.
+
+11
+00:00:37,576 --> 00:00:41,126
+The facilitator settles before the middleware releases the response.
+
+12
+00:00:41,126 --> 00:00:45,465
+Any required Permit Two approval is limited to the requested amount.
+
+13
+00:00:45,465 --> 00:00:48,701
+Mezo is also part of the treasury policy.
+
+14
+00:00:48,701 --> 00:00:53,152
+RelayGuard reads Trove Manager and Price Feed at one pinned block.
+
+15
+00:00:53,152 --> 00:00:56,793
+At one hundred eighty percent collateralization, configured limits apply.
+
+16
+00:00:56,793 --> 00:01:02,052
+At one hundred twenty five percent, every positive MUSD payment needs human review.
+
+17
+00:01:02,052 --> 00:01:06,098
+Below Mezo's one hundred ten percent minimum, spending is blocked.
+
+18
+00:01:06,098 --> 00:01:08,930
+If protocol reads fail, MUSD authorization pauses.
+
+19
+00:01:08,930 --> 00:01:13,380
+These controlled examples run the actual policy functions without sending funds.
+
+20
+00:01:13,380 --> 00:01:19,615
+Wave Two includes merchant-owned destinations, configurable paid routes, wallet preflight, and auditable protocol evidence.
+
+21
+00:01:19,615 --> 00:01:28,077
+This revision adds explicit operator permissions, signed buyer sessions, retry after wallet rejection, and recovery after an interrupted submission.
+
+22
+00:01:28,077 --> 00:01:32,530
+Both historical Testnet payment paths were rechecked against Mezo RPC.
+
+23
+00:01:32,530 --> 00:01:36,539
+This video uses current product captures and historical receipts.
+
+24
+00:01:36,539 --> 00:01:41,649
+Our first customers are API sellers and digital merchants already using MUSD.
+
+25
+00:01:41,649 --> 00:01:47,186
+Next, three design partners will test setup time, payment completion, and repeat use.
+
+26
+00:01:47,186 --> 00:01:51,019
+A nineteen-dollar monthly operations tier is a pricing hypothesis.
+
+27
+00:01:51,019 --> 00:01:54,000
+RelayGuard makes MUSD usable, and payments accountable.

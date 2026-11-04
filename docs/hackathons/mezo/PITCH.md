@@ -1,5 +1,7 @@
 # RelayGuard Mezo Pitch
 
+> Superseded by the [current Wave 2 submission](wave2/SUBMISSION.md), which separates the current build, this revision, historical evidence and release checks.
+
 **RelayGuard makes MUSD useful to both people and software agents.**
 
 A merchant creates an exact-amount MUSD invoice with a shareable checkout page and QR code, or integrates RelayGuard's Express x402 SDK/adapter into its own Node.js API to protect a website route or paid resource. People pay directly from their own Mezo-compatible wallet; agents use a signed x402 authorization settled by Mezo's facilitator. RelayGuard checks invoices, enforces authenticated merchant controls, and reports paid status only after settlement evidence is verified. The current SDK/adapter is source code to add to a merchant project, not a published npm package or a browser checkout widget.

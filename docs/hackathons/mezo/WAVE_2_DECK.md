@@ -19,6 +19,8 @@ style: |
 ---
 
 # RelayGuard
+
+Current submission materials: [Wave 2 package](wave2/SUBMISSION.md). This earlier deck is retained for history.
 ## MUSD payments with protocol-aware controls
 
 **Wave 2 · Mezo Testnet**

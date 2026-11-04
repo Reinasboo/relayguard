@@ -9,6 +9,8 @@ skills-lock.json
 .vercel/
 supabase/.temp/
 coverage/
+output/
+tmp/
 .env.supabase.local
 .env.app.local
 .env.wallets.local

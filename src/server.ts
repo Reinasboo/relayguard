@@ -25,6 +25,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mezoTestnet } from "viem/chains";
 import { AuthorizationService } from "./core/authorization.js";
 import { CheckoutService } from "./core/checkout.js";
+import { reconcileInvoiceSubmission } from "./core/checkout-recovery.js";
+import { CheckoutSecurity } from "./core/checkout-security.js";
 import { PostgresAuthorizationService, PostgresCheckoutService } from "./core/postgres.js";
 import type { AuthorizationStore, CheckoutStore } from "./core/stores.js";
 import { createMezoAgentIntegrationBrief } from "./x402/resource.js";
@@ -40,24 +42,27 @@ import {
   type MezoTroveHealth
 } from "./mezo/trove-health.js";
 import QRCode from "qrcode";
+import { readReviewEvidence, previewMezoPolicy, DEMO_PAYER, MUSD_TESTNET, type ReviewScenario } from "./mezo/review.js";
 
-loadDotenv({ path: ".env.app.local", override: true });
+if (process.env.NODE_ENV !== "test") loadDotenv({ path: ".env.app.local", override: true });
 
 const port = Number(process.env.PORT ?? "4173");
+const reviewOnly = process.env.RELAYGUARD_REVIEW_ONLY === "true";
 const host = process.env.HOST ?? "127.0.0.1";
 const rpcUrl = process.env.MEZO_RPC_URL ?? mezoTestnet.rpcUrls.default.http[0];
 const network = process.env.MEZO_NETWORK ?? "testnet";
-const signerPrivateKey = process.env.MEZO_PRIVATE_KEY;
+const signerPrivateKey = reviewOnly ? undefined : process.env.MEZO_PRIVATE_KEY;
 const configuredSigner = process.env.MEZO_SIGNER_ADDRESS;
 const configuredRecipients = (process.env.MEZO_ALLOWED_RECIPIENTS ?? "")
   .split(",")
   .map((recipient) => recipient.trim())
   .filter(Boolean);
 const approverId = process.env.MEZO_APPROVER_ID ?? "local-operator";
+const operatorUserIds = new Set((process.env.RELAYGUARD_OPERATOR_USER_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean));
 const merchantName = process.env.MEZO_MERCHANT_NAME ?? "RelayGuard Test Merchant";
 const merchantAddressConfig = process.env.MEZO_MERCHANT_ADDRESS ?? "";
-const databasePath = process.env.RELAYGUARD_DATABASE_PATH ?? "./data/relayguard.sqlite";
-const databaseUrl = process.env.DATABASE_URL;
+const databasePath = reviewOnly ? ":memory:" : process.env.RELAYGUARD_DATABASE_PATH ?? "./data/relayguard.sqlite";
+const databaseUrl = reviewOnly ? undefined : process.env.DATABASE_URL;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 const supabase =
@@ -66,7 +71,7 @@ const supabase =
         auth: { autoRefreshToken: false, persistSession: false }
       })
     : undefined;
-const x402Enabled = process.env.X402_ENABLED === "true";
+const x402Enabled = !reviewOnly && process.env.X402_ENABLED === "true";
 const x402PayTo = process.env.X402_PAY_TO ?? "";
 const x402Price = process.env.X402_PRICE ?? "$0.001";
 const x402FacilitatorUrl = process.env.X402_FACILITATOR_URL ?? "https://facilitator.vativ.io";
@@ -87,6 +92,8 @@ const publicClient = createPublicClient({
   transport: http(rpcUrl)
 });
 let musdDetailsPromise: Promise<{ decimals: number; tokenAddress: Address }> | undefined;
+let reviewEvidenceCache: { expiresAt: number; value: Awaited<ReturnType<typeof readReviewEvidence>> } | undefined;
+let reviewEvidencePending: Promise<Awaited<ReturnType<typeof readReviewEvidence>>> | undefined;
 const erc20ReadAbi = [
   {
     type: "function",
@@ -120,13 +127,15 @@ if (host !== "127.0.0.1" && host !== "0.0.0.0" && host !== "::") {
 if (network.toLowerCase() !== "testnet") {
   throw new Error("This demo server is deliberately restricted to Mezo testnet.");
 }
-if (!signerPrivateKey || !isHex(signerPrivateKey) || signerPrivateKey.length !== 66) {
+if (!reviewOnly && (!signerPrivateKey || !isHex(signerPrivateKey) || signerPrivateKey.length !== 66)) {
   throw new Error("MEZO_PRIVATE_KEY must be a 32-byte hex private key to start the Mezo demo server.");
 }
 
-const account = privateKeyToAccount(signerPrivateKey);
-const signerAddress = account.address;
-if (configuredSigner && getAddress(configuredSigner) !== signerAddress) {
+const account = signerPrivateKey ? privateKeyToAccount(signerPrivateKey as Hex) : undefined;
+const signerAddress = account?.address ?? DEMO_PAYER;
+const checkoutSecurity = new CheckoutSecurity(process.env.RELAYGUARD_CHECKOUT_SECRET ||
+  (reviewOnly ? randomBytes(32).toString("hex") : createHash("sha256").update(`relayguard-checkout:${signerPrivateKey}`).digest("hex")));
+if (!reviewOnly && configuredSigner && getAddress(configuredSigner) !== signerAddress) {
   throw new Error("MEZO_SIGNER_ADDRESS does not match the address derived from MEZO_PRIVATE_KEY.");
 }
 const allowedRecipients = configuredRecipients.map((recipient) => {
@@ -228,6 +237,9 @@ async function assetDetails(asset: string): Promise<{ decimals: number; tokenAdd
   if (!tokenAddress || !isAddress(tokenAddress)) {
     throw new Error("MUSD is unavailable: set MEZO_TOKEN_ADDRESS to the verified Mezo testnet MUSD contract.");
   }
+  if (getAddress(tokenAddress) !== MUSD_TESTNET) {
+    throw new Error("Configured MUSD token must match the canonical Mezo Testnet contract.");
+  }
   if (!musdDetailsPromise) {
     const address = getAddress(tokenAddress);
     const details = Promise.all([
@@ -245,6 +257,14 @@ async function assetDetails(asset: string): Promise<{ decimals: number; tokenAdd
     });
   }
   return musdDetailsPromise;
+}
+
+function parseExactAmount(value: string, decimals: number): bigint {
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/.exec(value.trim());
+  if (!match || (match[2]?.length ?? 0) > decimals) {
+    throw new Error(`Invalid amount: use a decimal with at most ${decimals} fractional digits.`);
+  }
+  return parseUnits(value.trim(), decimals);
 }
 
 function localOriginAllowed(req: IncomingMessage): boolean {
@@ -360,6 +380,34 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     response(res, 403, { error: "Cross-origin requests are not allowed." });
     return;
   }
+  if (reviewOnly && !["/api/mezo/evidence", "/api/mezo/policy-preview", "/api/health", "/api/config"].includes(url.pathname)) {
+    response(res, 403, { error: "Read-only review server. Merchant, signing, and payment mutations are disabled." });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/mezo/evidence") {
+    try {
+      if (!reviewEvidenceCache || Date.now() >= reviewEvidenceCache.expiresAt) {
+        reviewEvidencePending ??= readReviewEvidence(publicClient).finally(() => { reviewEvidencePending = undefined; });
+        const value = await reviewEvidencePending;
+        reviewEvidenceCache = { value, expiresAt: Date.now() + 30_000 };
+      }
+      response(res, 200, reviewEvidenceCache.value);
+    } catch {
+      response(res, 503, { error: "Mezo verification is temporarily unavailable. Historical links remain available; retry to obtain fresh evidence." });
+    }
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/mezo/policy-preview") {
+    const body = await readJson(req);
+    if (!["healthy", "review", "blocked", "unavailable"].includes(String(body.scenario))) {
+      response(res, 400, { error: "Choose a valid policy scenario." });
+      return;
+    }
+    response(res, 200, previewMezoPolicy(body.scenario as ReviewScenario,
+      typeof body.amountAtomic === "string" ? body.amountAtomic : undefined));
+    return;
+  }
 
   if (req.method === "GET" && url.pathname === "/api/config") {
     response(res, 200, {
@@ -438,6 +486,19 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     /^\/api\/payments\/[^/]+(?:\/(?:approve|reject|cancel|execute|verify))?$/.test(url.pathname);
   if (operatorApi && !(await authenticatedUserId(req))) {
     response(res, 401, { error: "Sign in with your RelayGuard merchant account to access payment controls." });
+    return;
+  }
+
+  const treasuryApi = url.pathname === "/api/health/details" || url.pathname === "/api/audit" ||
+    url.pathname === "/api/payments" || url.pathname.startsWith("/api/payments/");
+  if (treasuryApi && !operatorUserIds.has((await authenticatedUserId(req)) ?? "")) {
+    response(res, 403, { error: "This account is a merchant. Operator access requires an explicitly assigned operator role.", code: "operator_required" });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/session") {
+    const userId = await authenticatedUserId(req);
+    response(res, 200, { authenticated: Boolean(userId), operator: Boolean(userId && operatorUserIds.has(userId)) });
     return;
   }
 
@@ -758,7 +819,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       return;
     }
     const details = await assetDetails("MUSD");
-    const amountAtomic = parseUnits(body.amount.trim(), details.decimals);
+    const amountAtomic = parseExactAmount(body.amount, details.decimals);
     if (amountAtomic <= 0n) {
       response(res, 400, { error: "Invoice amount must be greater than zero." });
       return;
@@ -812,11 +873,27 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   const invoiceMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)$/);
   if (req.method === "GET" && invoiceMatch) {
     const invoice = await checkout.get(decodeURIComponent(invoiceMatch[1] ?? ""));
-    response(res, 200, { invoice });
+    const { merchantUserId: _owner, authorizationId: _authorization, ...publicInvoice } = invoice;
+    response(res, 200, { invoice: publicInvoice });
     return;
   }
 
   const invoiceAuthorizeMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/authorize$/);
+  const invoiceChallengeMatch = url.pathname.match(/^\/api\/invoices\/([^/]+)\/challenge$/);
+  if (req.method === "POST" && invoiceChallengeMatch) {
+    const invoice = await checkout.get(decodeURIComponent(invoiceChallengeMatch[1] ?? ""));
+    const body = await readJson(req);
+    if (!["open", "authorized"].includes(invoice.status)) {
+      response(res, 409, { error: `Invoice is ${invoice.status}; no new wallet signature is needed.` });
+      return;
+    }
+    if (typeof body.payerAddress !== "string" || !isAddress(body.payerAddress)) {
+      response(res, 400, { error: "A valid payer address is required." });
+      return;
+    }
+    response(res, 200, checkoutSecurity.challenge(invoice.id, body.payerAddress));
+    return;
+  }
   if (req.method === "POST" && invoiceAuthorizeMatch) {
     const invoice = await checkout.get(decodeURIComponent(invoiceAuthorizeMatch[1] ?? ""));
     const body = await readJson(req);
@@ -829,6 +906,13 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       return;
     }
     const payerAddress = getAddress(body.payerAddress);
+    let attemptId: string;
+    try {
+      attemptId = await checkoutSecurity.verify(body.challenge, body.signature, invoice.id, payerAddress);
+    } catch {
+      response(res, 403, { error: "Verify your wallet with a fresh checkout signature before reserving this invoice." });
+      return;
+    }
     const payerId = `checkout:${payerAddress.toLowerCase()}`;
     if (invoice.status === "authorized" && invoice.authorizationId) {
       const existing = await authorization.get(invoice.authorizationId);
@@ -836,7 +920,16 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
         response(res, 409, { error: "This invoice is already reserved by another payer." });
         return;
       }
-      response(res, 200, { invoice, authorization: existing, replayed: true });
+      if (existing.status !== "authorized") {
+        response(res, 409, { error: "This payment attempt is no longer active. Release or reconcile it before continuing." });
+        return;
+      }
+      response(res, 200, { invoice, authorization: existing, replayed: true,
+        checkoutToken: checkoutSecurity.session(invoice.id, payerAddress, existing.id, Date.now() + 8 * 24 * 60 * 60_000) });
+      return;
+    }
+    if (invoice.status !== "open") {
+      response(res, 409, { error: `Invoice is ${invoice.status}; no authorization was created.` });
       return;
     }
     const details = await assetDetails("MUSD");
@@ -867,7 +960,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       recipient: invoice.merchantAddress,
       amountAtomic: invoice.amountAtomic,
       purpose: `Merchant checkout: ${invoice.description}`,
-      idempotencyKey: `checkout:${invoice.id}:${payerAddress.toLowerCase()}`
+      idempotencyKey: `checkout:${invoice.id}:${attemptId}`
     };
     const { approvalThresholdAtomic: _approvalThreshold, ...checkoutPolicy } = policyFor("MUSD", details.decimals);
     const policy: SpendingPolicy = {
@@ -883,8 +976,17 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       });
       return;
     }
-    const updatedInvoice = await checkout.authorize(invoice.id, result.record.id);
-    response(res, 200, { invoice: updatedInvoice, authorization: result.record, replayed: result.replayed });
+    let updatedInvoice;
+    try {
+      updatedInvoice = await checkout.authorize(invoice.id, result.record.id);
+    } catch (error) {
+      // A competing payer may win the invoice after our balance read. Release only our new reservation.
+      if (!result.replayed) await authorization.cancel(result.record.id);
+      response(res, 409, { error: "Another payment attempt reserved this invoice. Refresh its status before continuing." });
+      return;
+    }
+    response(res, 200, { invoice: updatedInvoice, authorization: result.record, replayed: result.replayed,
+      checkoutToken: checkoutSecurity.session(invoice.id, payerAddress, result.record.id, Date.now() + 8 * 24 * 60 * 60_000) });
     return;
   }
 
@@ -901,10 +1003,22 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       return;
     }
     const record = await authorization.get(body.authorizationId);
+    try {
+      checkoutSecurity.requireSession(body.checkoutToken, invoice.id, record.id);
+    } catch {
+      response(res, 403, { error: "A valid checkout session is required to record this payment." });
+      return;
+    }
+    if (invoice.status === "submitted" && invoice.authorizationId === record.id && invoice.transactionReference === body.transactionHash) {
+      await reconcileInvoiceSubmission(invoice, authorization);
+      response(res, 200, { invoice, authorization: await authorization.get(record.id), replayed: true });
+      return;
+    }
     if (
       invoice.status !== "authorized" ||
       invoice.authorizationId !== record.id ||
-      record.status !== "authorized" ||
+      !["authorized", "executing", "submitted"].includes(record.status) ||
+      (record.transactionReference !== undefined && record.transactionReference !== body.transactionHash) ||
       record.intent.asset !== "MUSD" ||
       record.intent.recipient.toLowerCase() !== invoice.merchantAddress.toLowerCase() ||
       record.intent.amountAtomic !== invoice.amountAtomic
@@ -912,10 +1026,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: "Invoice and policy authorization do not match." });
       return;
     }
-    await authorization.markExecuting(record.id);
-    const submitted = await authorization.markSubmitted(record.id, Date.now(), body.transactionHash);
+    // Persist the broadcast hash first. Retrying submit or verify repairs a partially completed transition.
     const updatedInvoice = await checkout.submit(invoice.id, record.id, body.transactionHash);
-    response(res, 200, { invoice: updatedInvoice, authorization: submitted });
+    await reconcileInvoiceSubmission(updatedInvoice, authorization);
+    response(res, 200, { invoice: updatedInvoice, authorization: await authorization.get(record.id) });
     return;
   }
 
@@ -928,16 +1042,27 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       return;
     }
     const record = await authorization.get(body.authorizationId);
+    try {
+      const payer = checkoutSecurity.requireSession(body.checkoutToken, invoice.id, record.id);
+      if (payer.toLowerCase() !== body.payerAddress.toLowerCase()) throw new Error("Payer mismatch");
+    } catch {
+      response(res, 403, { error: "A valid checkout session is required to release this payment." });
+      return;
+    }
+    if (invoice.status === "open" && record.status === "cancelled") {
+      response(res, 200, { invoice, replayed: true });
+      return;
+    }
     if (
       invoice.status !== "authorized" ||
       invoice.authorizationId !== record.id ||
-      record.status !== "authorized" ||
+      !["authorized", "cancelled"].includes(record.status) ||
       record.intent.agentId !== `checkout:${getAddress(body.payerAddress).toLowerCase()}`
     ) {
       response(res, 409, { error: "Only the same payer can release an unsubmitted invoice authorization." });
       return;
     }
-    await authorization.cancel(record.id);
+    if (record.status === "authorized") await authorization.cancel(record.id);
     const released = await checkout.release(invoice.id, record.id);
     response(res, 200, { invoice: released });
     return;
@@ -954,7 +1079,13 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: `Invoice cannot be verified from state '${invoice.status}'.` });
       return;
     }
+    await reconcileInvoiceSubmission(invoice, authorization);
     const record = await authorization.get(invoice.authorizationId);
+    if (record.status === "confirmed" || record.status === "failed") {
+      const settled = await checkout.settle(invoice.id, record.status === "confirmed" ? "paid" : "failed");
+      response(res, 200, { invoice: settled, authorization: record, reconciled: true });
+      return;
+    }
     const details = await assetDetails("MUSD");
     const evidence = await adapter.verifySettlement(invoice.transactionReference, undefined, {
       rpcUrl,
@@ -1014,7 +1145,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     const asset = body.asset.toUpperCase();
     const details = await assetDetails(asset);
     const recipient = getAddress(body.recipient);
-    const amountAtomic = parseUnits(body.amount, details.decimals);
+    const amountAtomic = parseExactAmount(body.amount, details.decimals);
     if (amountAtomic <= 0n) {
       response(res, 400, { error: "Payment amount must be greater than zero." });
       return;
@@ -1410,7 +1541,12 @@ app.use(async (req: Request, res: Response) => {
     }
     const files: Record<string, { name: string; type: string }> = {
       "/": { name: "index.html", type: "text/html; charset=utf-8" },
+      "/review": { name: "review.html", type: "text/html; charset=utf-8" },
+      "/review.js": { name: "review.js", type: "text/javascript; charset=utf-8" },
+      "/review.css": { name: "review.css", type: "text/css; charset=utf-8" },
+      "/submission/relayguard-wave2.pdf": { name: "submission/relayguard-wave2.pdf", type: "application/pdf" },
       "/app.js": { name: "app.js", type: "text/javascript; charset=utf-8" },
+      "/wallet-provider.js": { name: "wallet-provider.js", type: "text/javascript; charset=utf-8" },
       "/mezo-client.js": { name: "mezo-client.js", type: "text/javascript; charset=utf-8" },
       "/x402-client.js": { name: "x402-client.js", type: "text/javascript; charset=utf-8" },
       "/styles.css": { name: "styles.css", type: "text/css; charset=utf-8" },
@@ -1433,7 +1569,7 @@ app.use(async (req: Request, res: Response) => {
     const message = error instanceof Error ? error.message : "Unexpected server error.";
     const status = message.toLowerCase().includes("not found")
       ? 404
-      : message.includes("JSON") || message.includes("required") || message.includes("invalid") || message.includes("greater") || message.includes("Supported") || message.includes("Request body")
+      : message.includes("JSON") || message.includes("required") || message.toLowerCase().includes("invalid") || message.includes("greater") || message.includes("Supported") || message.includes("Request body")
         ? 400
         : 500;
     console.error("RelayGuard request failed:", message);
@@ -1445,7 +1581,7 @@ app.use(async (req: Request, res: Response) => {
   }
 });
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.RELAYGUARD_NO_LISTEN !== "true") {
   const server = app.listen(port, host, () => {
     console.log(`RelayGuard Mezo demo listening at http://${host}:${port}`);
     console.log(`Network: ${mezoTestnet.name} (${mezoTestnet.id}); wallet: ${signerAddress}`);

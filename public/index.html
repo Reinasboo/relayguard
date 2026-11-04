@@ -18,7 +18,8 @@
           <span>RelayGuard</span>
         </a>
         <div class="rail-label">WORKSPACE</div>
-        <a class="rail-link active" href="/" data-view="console"><span class="rail-icon">◈</span>Payments</a>
+        <a class="rail-link" href="/#console" data-view="console"><span class="rail-icon">◈</span>Operator treasury</a>
+        <a class="rail-link" href="/review"><span class="rail-icon">↗</span>Explore the Wave 2 build</a>
         <a class="rail-link" href="#merchant" data-view="merchant"><span class="rail-icon">▣</span>Merchant</a>
         <a class="rail-link" href="#faq" data-view="faq"><span class="rail-icon">?</span>FAQ</a>
         <div class="rail-note">
@@ -160,7 +161,7 @@
           <section class="intro">
             <div>
               <div class="eyebrow">MUSD COMMERCE</div>
-              <h1>One payment layer.<br>Customers and agents.</h1>
+              <h1>Get paid in MUSD.<br>Keep your wallet.</h1>
               <p>Accept MUSD in person, online, or from software agents—with one merchant wallet and verifiable settlement.</p>
             </div>
             <div class="merchant-hero-visual" aria-hidden="true">
@@ -170,6 +171,11 @@
               <div class="hero-settlement"><span class="hero-settlement-check">✓</span><span><strong>One merchant destination</strong><small>One wallet · two payment paths</small></span></div>
             </div>
           </section>
+          <ol class="merchant-setup" aria-label="Merchant setup progress">
+            <li id="setup-account" data-state="current"><span>01</span><div><strong>Connect your account</strong><small>Keep your invoices in one place</small></div><b>START HERE</b></li>
+            <li id="setup-wallet" data-state="waiting"><span>02</span><div><strong>Verify a receiving wallet</strong><small>One signature proves ownership</small></div><b>UP NEXT</b></li>
+            <li id="setup-invoice" data-state="waiting"><span>03</span><div><strong>Share your first invoice</strong><small>Get a payment link and QR</small></div><b>UP NEXT</b></li>
+          </ol>
           <div class="merchant-callout">
             <div class="callout-icon">↗</div>
             <div><strong>Built for both sides of the transaction</strong><p>Share an exact MUSD invoice by link or QR, or monetize an API with x402. Customers sign with their wallet; agent payments settle through the Mezo facilitator.</p></div>
@@ -201,11 +207,11 @@
               <div class="merchant-profile"><div class="merchant-avatar"><img src="/relayguard-mark.svg" alt=""></div><div><strong id="merchant-name">Loading merchant…</strong><small id="merchant-address">Checking receiving wallet</small></div><span class="verified-tag">MEZO MUSD</span></div>
               <form id="invoice-form">
                 <label class="field">Description
-                  <input id="invoice-description" maxlength="120" value="Coffee and pastry" required>
+                  <input id="invoice-description" maxlength="120" value="Digital access pass" required>
                 </label>
                 <div class="field-row">
                   <label class="field">Price
-                    <div class="input-with-unit"><input id="invoice-amount" inputmode="decimal" value="2.50" autocomplete="off" required><span>MUSD</span></div>
+                    <div class="input-with-unit"><input id="invoice-amount" inputmode="decimal" value="1.00" autocomplete="off" required><span>MUSD</span></div>
                     <small class="field-help">The customer reviews and signs the exact amount in their wallet.</small>
                   </label>
                   <label class="field">Link expiry
@@ -214,7 +220,7 @@
                     </select>
                   </label>
                 </div>
-                <button id="invoice-button" class="button button-primary" type="submit"><span>Create invoice</span><span>→</span></button>
+                <button id="invoice-button" class="button button-primary" type="submit" disabled><span>Create invoice</span><span>→</span></button>
               </form>
               <div id="created-invoice" class="created-invoice hidden"></div>
             </article>

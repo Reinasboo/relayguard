@@ -1,5 +1,7 @@
 # Build status
 
+> Current candidate: [Wave 2 package](hackathons/mezo/wave2/SUBMISSION.md). The status below is a historical November 3 snapshot and contains superseded test counts and deployment notes. Use the [current release checklist](hackathons/mezo/wave2/RELEASE_CHECKLIST.md) for this revision.
+
 Updated: 2026-11-03
 
 ## Product

@@ -8,6 +8,10 @@
   },
   "rewrites": [
     {
+      "source": "/review",
+      "destination": "/review.html"
+    },
+    {
       "source": "/api/paid-resource",
       "destination": "/api/config?__relayguard_path=/api/paid-resource"
     },

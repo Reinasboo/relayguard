@@ -1,5 +1,7 @@
 # Mezo Demo Script
 
+> Use the [current timed Wave 2 demo script](wave2/DEMO.md). This earlier script is retained as historical context.
+
 ## RelayGuard integrated product
 
 1. Start with `npm start` and show the single RelayGuard workspace: Mezo Testnet status, merchant checkout, and agent API.

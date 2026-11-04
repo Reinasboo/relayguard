@@ -12,10 +12,13 @@
     "build:browser": "esbuild src/x402/client.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=public/x402-client.js && esbuild src/mezo/checkout-client.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=public/mezo-client.js",
     "start": "npm run build && node dist/src/server.js",
     "dev": "npm run build && node dist/src/server.js",
+    "review": "npm run build && node scripts/review-server.mjs",
+    "verify:ui": "npm run build && node scripts/verify-ui.mjs",
     "test": "npm run build && node --test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/express": "^5.0.6",
     "@types/node": "^22.15.30",
     "@types/pg": "^8.23.1",

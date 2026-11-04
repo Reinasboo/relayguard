@@ -1,8 +1,20 @@
 # RelayGuard
 
+**Current Wave 2 candidate:** [submission package](docs/hackathons/mezo/wave2/SUBMISSION.md), [technical brief](docs/hackathons/mezo/wave2/TECHNICAL.md), [demo script](docs/hackathons/mezo/wave2/DEMO.md), and [release checklist](docs/hackathons/mezo/wave2/RELEASE_CHECKLIST.md).
+
+Review the new product walkthrough without keys, accounts or funds:
+
+```powershell
+npm ci
+npm run review
+# http://127.0.0.1:4173/review
+```
+
+For the normal payment application, configure `.env` as described below. Shared treasury APIs now require the signed-in user's Supabase UUID in `RELAYGUARD_OPERATOR_USER_IDS`. Merchant sign-in alone does not grant operator permission. Apply the November 4 wallet-verification migration before deploying this revision.
+
 RelayGuard is one Mezo MUSD payments product with two connected experiences: QR-ready merchant invoices for people and an x402-protected paid resource for software agents. Buyers use their own EVM wallet; merchants receive MUSD directly. The operator console brings authorization, limits, and settlement evidence together.
 
-## Current status
+## Historical baseline before the November 4 revision
 
 The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements, a Vercel serverless entry point, and Supabase Postgres persistence. The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app); API, health, config, x402 challenge, checkout routing, and the live trove-health dashboard have been smoke-tested. A previous QR routing issue has been fixed, but a fresh authenticated invoice-to-wallet-payment pass is still outstanding. It includes:
 

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "viewports": [
+    390,
+    768,
+    1440
+  ],
+  "policyScenarios": 4,
+  "amountCap": true,
+  "defaultWorkspace": "merchant",
+  "reviewMutationsDenied": true,
+  "broadcastReloadRecovery": true,
+  "pageErrors": []
+}

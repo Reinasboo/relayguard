@@ -1,5 +1,7 @@
 # RelayGuard architecture
 
+> Historical foundation plan. The application now includes a server, UI, Mezo execution and x402. See the [current implementation map](../hackathons/mezo/wave2/TECHNICAL.md) for actual boundaries and recovery behavior.
+
 ## Repository baseline
 
 The workspace initially contained only the engineering directive in `build.md`: no application source, dependency manifest, tests, deployment configuration, credentials, or Git repository was present. There was no existing behavior to preserve. This repository uses Node.js/TypeScript as a minimal initial foundation; the choice can be revisited before a user-facing application is added.

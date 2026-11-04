@@ -24,6 +24,8 @@ let checkoutVerificationInProgress = false;
 let appConfig;
 let appConfigPromise;
 let authSession;
+let operatorAccess = false;
+let checkoutToken;
 let healthLoadSequence = 0;
 let auditLoadSequence = 0;
 let merchantLoadSequence = 0;
@@ -512,7 +514,10 @@ function renderTransaction(record, details = {}) {
 async function loadHealth() {
   const loadSequence = ++healthLoadSequence;
   const wasSignedIn = Boolean(authSession?.access_token);
-  const endpoint = wasSignedIn ? "/api/health/details" : "/api/health/console";
+  if (wasSignedIn) {
+    try { operatorAccess = (await api("/api/session")).body.operator; } catch { operatorAccess = false; }
+  } else operatorAccess = false;
+  const endpoint = operatorAccess ? "/api/health/details" : "/api/health/console";
   byId("network-label").textContent = "Loading Mezo snapshot…";
   byId("network-status").textContent = "READING";
   byId("network-status").className = "status-pill pending";
@@ -535,6 +540,7 @@ async function loadHealth() {
     const { body: snapshot } = await api(endpoint);
     if (loadSequence !== healthLoadSequence) return;
     renderSnapshot(snapshot);
+    if (operatorAccess) void loadAudit();
   } catch (error) {
     if (loadSequence !== healthLoadSequence) return;
     if (wasSignedIn) {
@@ -710,10 +716,10 @@ function updateUnit() {
 
 async function loadAudit() {
   const loadSequence = ++auditLoadSequence;
-  if (!authSession?.access_token) {
-    byId("audit-state").textContent = "Sign-in required";
+  if (!authSession?.access_token || !operatorAccess) {
+    byId("audit-state").textContent = "Operator access";
     byId("audit-state").className = "stat-value compact";
-    byId("audit-events").textContent = "Sign in to your merchant account to view the authorization audit.";
+    byId("audit-events").textContent = "The shared treasury audit is restricted to assigned operators. Your invoices appear in the merchant workspace.";
     byId("refresh-audit").disabled = true;
     return;
   }
@@ -1001,6 +1007,7 @@ async function loadMerchantWorkspace() {
     byId("merchant-display-name").value = merchantBody.name;
     const isMerchantSignedIn = Boolean(authSession?.access_token);
     const walletVerified = isMerchantSignedIn && merchantBody.walletVerified && merchantBody.address;
+    renderMerchantSetup(isMerchantSignedIn, Boolean(walletVerified), merchantInvoices.length > 0);
     byId("merchant-wallet-connect").dataset.walletVerified = String(Boolean(walletVerified));
     byId("merchant-address").textContent = walletVerified
       ? `${shortAddress(merchantBody.address)} · verified receiving wallet`
@@ -1296,9 +1303,22 @@ async function deleteMerchantX402Resource(resourceId) {
   }
 }
 
+function renderMerchantSetup(signedIn, walletVerified, hasInvoice) {
+  const states = [signedIn ? "done" : "current", walletVerified ? "done" : signedIn ? "current" : "waiting",
+    hasInvoice && walletVerified ? "done" : walletVerified ? "current" : "waiting"];
+  ["account", "wallet", "invoice"].forEach((step, index) => {
+    const element = byId(`setup-${step}`);
+    element.dataset.state = states[index];
+    element.querySelector("b").textContent = states[index] === "done" ? "COMPLETE" : states[index] === "current" ? "YOUR NEXT STEP" : "UP NEXT";
+    if (states[index] === "current") element.setAttribute("aria-current", "step");
+    else element.removeAttribute("aria-current");
+  });
+}
+
 function renderAuthState(message) {
   const target = byId("auth-state");
   const signedIn = Boolean(authSession?.access_token);
+  if (!signedIn) renderMerchantSetup(false, false, false);
   target.textContent = message ?? (signedIn
     ? "Account connected. Merchant invoice management is active."
     : appConfig?.supabase
@@ -1429,6 +1449,7 @@ async function submitMerchantAuth(event) {
 async function signOutMerchant() {
   const previousSession = authSession;
   authSession = undefined;
+  operatorAccess = false;
   localStorage.removeItem("relayguard.authSession");
   renderAuthState();
   if (previousSession?.access_token && appConfig?.supabase) {
@@ -1446,6 +1467,7 @@ async function signOutMerchant() {
 function renderInvoiceList(invoices) {
   const list = byId("invoice-list");
   merchantInvoices = invoices;
+  renderMerchantSetup(Boolean(authSession?.access_token), byId("merchant-wallet-connect").dataset.walletVerified === "true", invoices.length > 0);
   list.innerHTML = "";
   if (!invoices.length) {
     const empty = document.createElement("div");
@@ -1554,6 +1576,19 @@ async function loadCheckoutPage() {
       api("/api/merchant")
     ]);
     checkoutInvoice = invoiceBody.invoice;
+    let broadcastAttempt;
+    try { broadcastAttempt = JSON.parse(sessionStorage.getItem(`relayguard.broadcast:${invoiceId}`) || "null"); } catch { /* no saved attempt */ }
+    if (broadcastAttempt && /^0x[0-9a-fA-F]{64}$/.test(broadcastAttempt.transactionHash) &&
+        !["paid", "failed", "submitted"].includes(checkoutInvoice.status)) {
+      try {
+        const recovered = await api(`/api/invoices/${encodeURIComponent(invoiceId)}/submit`, {
+          method: "POST", body: JSON.stringify(broadcastAttempt)
+        });
+        checkoutInvoice = recovered.body.invoice;
+      } catch {
+        throw new Error(`Your wallet already broadcast ${broadcastAttempt.transactionHash}. The server could not reconcile it yet. Do not pay again; keep this transaction hash and contact the merchant.`);
+      }
+    }
     byId("checkout-loading").classList.add("hidden");
     byId("checkout-loading").setAttribute("aria-busy", "false");
     byId("checkout-content").classList.remove("hidden");
@@ -1912,6 +1947,7 @@ async function confirmTroveOpen() {
 }
 
 function markCheckoutPaid(transactionHash) {
+  try { sessionStorage.removeItem(`relayguard.broadcast:${checkoutInvoice.id}`); } catch { /* storage may be unavailable */ }
   const status = byId("checkout-state-tag");
   status.textContent = "PAYMENT CONFIRMED";
   status.className = "verified-tag checkout-status success";
@@ -2029,12 +2065,21 @@ async function payCheckout() {
     }
     byId("checkout-wallet-state").textContent = `Connected ${shortAddress(checkoutWallet)} · MUSD balance and estimated BTC gas checked. Requesting exact payment authorization…`;
     button.textContent = "Requesting authorization…";
+    button.textContent = "Verify wallet ownership…";
+    const { body: proof } = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/challenge`, {
+      method: "POST", body: JSON.stringify({ payerAddress: checkoutWallet })
+    });
+    const signature = await provider.request({ method: "personal_sign", params: [
+      `0x${Array.from(new TextEncoder().encode(proof.message), (byte) => byte.toString(16).padStart(2, "0")).join("")}`,
+      checkoutWallet
+    ] });
     const { body: authorizedBody } = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/authorize`, {
       method: "POST",
-      body: JSON.stringify({ payerAddress: checkoutWallet })
+      body: JSON.stringify({ payerAddress: checkoutWallet, challenge: proof.challenge, signature })
     });
     checkoutInvoice = authorizedBody.invoice;
     checkoutAuthorization = authorizedBody.authorization;
+    checkoutToken = authorizedBody.checkoutToken;
     const amountHex = BigInt(checkoutInvoice.amountAtomic).toString(16).padStart(64, "0");
     const addressHex = checkoutInvoice.merchantAddress.slice(2).toLowerCase().padStart(64, "0");
     const data = `0xa9059cbb${addressHex}${amountHex}`;
@@ -2050,10 +2095,16 @@ async function payCheckout() {
       }]
     });
     broadcastHash = transactionHash;
+    try {
+      sessionStorage.setItem(`relayguard.broadcast:${checkoutInvoice.id}`, JSON.stringify({
+        authorizationId: checkoutAuthorization.id, checkoutToken, transactionHash
+      }));
+    } catch { /* Record on the server immediately even if browser storage is unavailable. */ }
     const { body: submittedBody } = await api(`/api/invoices/${encodeURIComponent(checkoutInvoice.id)}/submit`, {
       method: "POST",
       body: JSON.stringify({
         authorizationId: checkoutAuthorization.id,
+        checkoutToken,
         transactionHash
       })
     });
@@ -2072,6 +2123,7 @@ async function payCheckout() {
             method: "POST",
             body: JSON.stringify({
               authorizationId: checkoutAuthorization.id,
+              checkoutToken,
               transactionHash: broadcastHash
             })
           });
@@ -2097,6 +2149,7 @@ async function payCheckout() {
           method: "POST",
           body: JSON.stringify({
             authorizationId: checkoutAuthorization.id,
+            checkoutToken,
             payerAddress: checkoutWallet
           })
         });
@@ -2227,9 +2280,9 @@ byId("pay-x402-resource").addEventListener("click", async (event) => {
 if (window.location.pathname.startsWith("/pay/")) {
   loadCheckoutPage();
 } else {
-  const initialView = ["#merchant", "#faq"].includes(window.location.hash)
+  const initialView = ["#merchant", "#faq", "#console"].includes(window.location.hash)
     ? window.location.hash.slice(1)
-    : "console";
+    : "merchant";
   setView(initialView);
   if (initialView === "console") {
     void ensureAppConfig();

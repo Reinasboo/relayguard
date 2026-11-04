@@ -1,0 +1,11 @@
+RelayGuard turns Mezo MUSD into paid orders and paid API access. A seller needs more than a token balance. They need to know which order was paid, by whom, and for exactly how much.
+
+A merchant verifies a receiving wallet and shares an invoice link or QR. The buyer reviews the amount and signs a direct MUSD transfer. RelayGuard marks the invoice paid only when the receipt matches the token, payer, merchant, and amount. The merchant keeps their wallet and storefront.
+
+For software agents, the merchant protects an Express API route with x402. An unpaid request returns exact MUSD payment terms. The buyer signs an authorization. The facilitator settles before the middleware releases the response. Any required Permit Two approval is limited to the requested amount.
+
+Mezo is also part of the treasury policy. RelayGuard reads Trove Manager and Price Feed at one pinned block. At one hundred eighty percent collateralization, configured limits apply. At one hundred twenty five percent, every positive MUSD payment needs human review. Below Mezo's one hundred ten percent minimum, spending is blocked. If protocol reads fail, MUSD authorization pauses. These controlled examples run the actual policy functions without sending funds.
+
+Wave Two includes merchant-owned destinations, configurable paid routes, wallet preflight, and auditable protocol evidence. This revision adds explicit operator permissions, signed buyer sessions, retry after wallet rejection, and recovery after an interrupted submission. Both historical Testnet payment paths were rechecked against Mezo RPC. This video uses current product captures and historical receipts.
+
+Our first customers are API sellers and digital merchants already using MUSD. Next, three design partners will test setup time, payment completion, and repeat use. A nineteen-dollar monthly operations tier is a pricing hypothesis. RelayGuard makes MUSD usable, and payments accountable.

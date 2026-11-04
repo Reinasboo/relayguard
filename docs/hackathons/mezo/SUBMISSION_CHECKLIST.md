@@ -1,5 +1,7 @@
 # Mezo Submission Checklist
 
+> Historical checklist from the earlier submission iteration. Use the [current Wave 2 release checklist](./wave2/RELEASE_CHECKLIST.md) for this candidate; its latest local validation reports 63 passing tests.
+
 - [x] Integrate Mezo Testnet MUSD and verify the documented token contract on-chain.
 - [x] Open the minimum-size testnet MUSD trove, verify the successful receipt, wallet balance, debt, collateral, and collateral ratio. Transaction: `0x0175798b2aeaf7486d348a3e8194fe61c52570fe8bd8849b235041f39df1ceee`.
 - [x] Build a merchant MUSD invoice, shareable checkout URL, QR code, buyer wallet path, and receipt-based payment status.

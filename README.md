@@ -12,11 +12,13 @@ npm run review
 # http://127.0.0.1:4173/review
 ```
 
-For the normal payment application, configure `.env` as described below. Shared treasury APIs now require the signed-in user's Supabase UUID in `RELAYGUARD_OPERATOR_USER_IDS`. Merchant sign-in alone does not grant operator permission. Apply the November 4 wallet-verification migration before deploying this revision.
+For the normal payment application, configure `.env` as described below. Shared treasury APIs require the signed-in user's Supabase UUID in `RELAYGUARD_OPERATOR_USER_IDS`; merchant sign-in alone does not grant operator permission. The current source revision is deployed and Vercel reports it ready, but release acceptance is still blocked on the November 4 wallet-verification migration and production operator/checkout configuration. See the [release checklist](docs/hackathons/mezo/wave2/RELEASE_CHECKLIST.md) before relying on production merchant or treasury flows.
 
 RelayGuard is one Mezo MUSD payments product with two connected experiences: QR-ready merchant invoices for people and an x402-protected paid resource for software agents. Buyers use their own EVM wallet; merchants receive MUSD directly. The operator console brings authorization, limits, and settlement evidence together.
 
 ## Historical baseline before the November 4 revision
+
+The details below are a November 3 snapshot, not the current release checklist or deployment state. Current source, validations, and remaining production gates are tracked in the [Wave 2 submission](docs/hackathons/mezo/wave2/SUBMISSION.md), [validation report](docs/hackathons/mezo/wave2/VALIDATION.md), and [release checklist](docs/hackathons/mezo/wave2/RELEASE_CHECKLIST.md).
 
 The repository contains a working Mezo Testnet product demo with verified invoice and x402 settlements, a Vercel serverless entry point, and Supabase Postgres persistence. The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app); API, health, config, x402 challenge, checkout routing, and the live trove-health dashboard have been smoke-tested. A previous QR routing issue has been fixed, but a fresh authenticated invoice-to-wallet-payment pass is still outstanding. It includes:
 
@@ -32,7 +34,7 @@ The repository contains a working Mezo Testnet product demo with verified invoic
 - Block-pinned Mezo trove snapshots attached to MUSD authorization decisions and human approvals, with stale-policy cancellation and tamper-detection coverage.
 - Focused automated tests for policy limits, trove risk tiers, approval binding, idempotency, lifecycle transitions, and audit-chain integrity.
 
-The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). All three hosted migrations, the Vercel production deployment, and live health/Postgres startup are verified. Merchants can add the RelayGuard Express x402 adapter to their own Node.js API; trove-aware decisions are block-pinned and audit-committed. 49 automated tests pass locally. Only the healthy production state has been observed; boundary outcomes still need controlled verification.
+The Mezo-specific product direction and evidence are in the [merchant checkout strategy](./docs/hackathons/mezo/PRODUCT_STRATEGY.md). The Solana, NEAR, and Lightning adapters remain fail-closed foundations. The Mezo borrower opened a testnet trove, then completed a 1.00 MUSD invoice and a 0.001 MUSD x402 payment to the same merchant receiver; on-chain receipts are recorded in the [test results](./docs/hackathons/mezo/TEST_RESULTS.md). At the time of this historical snapshot, three hosted migrations, the Vercel deployment, and live health/Postgres startup had been verified. The current candidate adds further release gates; its latest automated suite passes 63 tests. Historical transactions are not current production-readiness evidence.
 
 ## Requirements
 

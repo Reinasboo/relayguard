@@ -20,7 +20,7 @@ The original judge scores were Mezo integration 4/10, business viability 6/10, t
 - [x] Run test and browser checks for this candidate. Record evidence in VALIDATION.md. Repeat if the candidate changes before deployment.
 - [ ] Apply `20261104000000_restrict_wallet_verification.sql` to the hosted database.
 - [ ] Set `RELAYGUARD_OPERATOR_USER_IDS` and an independent checkout secret in production.
-- [ ] Deploy this revision. Confirm `/review` and the PDF load without authentication.
+- [x] Deploy this revision. `/review` and the submission PDF returned HTTP 200 in the November 4 spot check.
 - [ ] Check the real x402 endpoint returns a valid canonical MUSD challenge.
 - [ ] Complete a fresh funded-wallet checkout and x402 browser payment with approved Testnet funds.
 - [ ] Record the narrated demo. Upload it and verify the actual public playback URL.
@@ -32,3 +32,10 @@ The original judge scores were Mezo integration 4/10, business viability 6/10, t
 - [ ] Run three design-partner pilots. Measure activation, completion and repeat use.
 - [ ] Validate willingness to pay before implementing billing.
 - [ ] Add shared rate limits, monitoring, backups and independent signer/security review before mainnet.
+
+## Latest production spot check — November 4, 2026
+
+- Vercel reports the current source deployment as `READY`; `/review` and `/submission/relayguard-wave2.pdf` returned HTTP 200.
+- The production environment-variable inventory does not include `RELAYGUARD_OPERATOR_USER_IDS` or `RELAYGUARD_CHECKOUT_SECRET`. Configure both before relying on operator or checkout mutation flows.
+- `GET /api/paid-resource` returned HTTP 502 after the facilitator's `/supported` request timed out. This single check does not establish whether the facilitator failure is transient; retry and verify a valid 402 challenge before release.
+- The hosted wallet-verification migration is still an open release item; confirm remote migration history after applying it.

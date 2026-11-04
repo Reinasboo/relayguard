@@ -1,5 +1,7 @@
 # Mezo Test Results
 
+> Historical results from the earlier checkout implementation. The current candidate's test run and deployment spot checks are in [wave2/VALIDATION.md](./wave2/VALIDATION.md); the current local suite has 63 passing tests. Historical transaction evidence below is retained and is not a fresh production payment.
+
 ## Automated results
 
 - `npm test` passes 45 tests, including trove risk tiers and exact policy boundaries, block-pinned protocol reads, authorization lifecycle, SQLite persistence, audit-chain integrity, adapter conformance, invoice lifecycle, and owner scoping.

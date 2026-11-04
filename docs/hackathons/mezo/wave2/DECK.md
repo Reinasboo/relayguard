@@ -36,7 +36,7 @@ API sellers and digital merchants already using MUSD. Hosted invoice first, Expr
 
 ## 9. The next milestone is repeat usage
 
-Validate first-payment setup time, payment completion and repeat weekly use. Before public submission, deploy this revision, apply its access-control migration, verify a real-wallet checkout, and publish the narrated demo. Mainnet requires separate operational and security work.
+Validate first-payment setup time, payment completion and repeat weekly use. The source is deployed; before public submission, apply its access-control migration, configure the production operator/checkout variables, verify a real-wallet checkout and x402 challenge, and publish the narrated demo. Mainnet requires separate operational and security work.
 
 ## Evidence sources
 

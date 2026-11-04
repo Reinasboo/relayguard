@@ -1,10 +1,10 @@
-# Coherent visual system — November 4, 2026
+# Visual system — November 4, 2026
 
 This revision follows the owner's supplied anti-slop rules, recorded in [design.md](../../../../design.md). It addresses the inconsistent layout and component styling reported after PR #2 was merged.
 
 ## Direction and implementation
 
-A quiet charcoal payment workspace, clear settlement records, and lime reserved for the next action. Manrope is the single UI typeface. Inputs and prose use 16px text; supporting labels use 14px. Flat surfaces, two corner radii, shared controls and named color tokens replace the mixed gradients, glows and overlapping type treatments.
+A quiet navy payment workspace, clear settlement records, and lime reserved for the next action. Manrope is the single UI typeface. Inputs and prose use 16px text; supporting labels use 14px. The palette uses `#0c1117` for the canvas, `#111820` for surfaces, `#151e28` for raised elements, `#24303d` for borders, `#e8edf3` for text, and `#b7f566` for the accent. The established subtle navy canvas background is retained.
 
 - `public/experience.css` owns the palette, type, controls, focus states and wallet dialog.
 - `public/styles.css` owns the merchant, treasury, help and checkout layouts.
@@ -24,6 +24,6 @@ The reviewer uses a payment-route panel, an editorial integration list, two rece
 - Actual screenshots were inspected for hierarchy, label/input alignment, wrapping and state visibility. `npm run verify:ui` also checks the policy scenarios and interrupted broadcast recovery.
 - Read-only checks of the existing public deployment returned the expected MUSD 402 challenge and protected audit response. Deployment of this revision and funded wallet acceptance remain release checks.
 
-Review [the captures and machine-readable results](../../../../output/visual-audit/). The PDF and local pitch/walkthrough are rebuilt from the current reviewer capture. No payment, borrowing or approval was broadcast.
+Review [the captures and machine-readable results](../../../../output/visual-audit/). These submitted captures and the generated PDF/videos preserve the earlier charcoal visual iteration; they are retained as hackathon materials and are not color references for the current navy styles. No payment, borrowing or approval was broadcast.
 
-Media typography and colors also use Manrope and the shared charcoal palette. Install Python rendering dependencies with `python -m pip install -r scripts/requirements-media.txt`. The generators derive regular and semibold static font instances from the licensed font already in the repository; temporary instances are not committed.
+The existing media typography uses Manrope; its charcoal colors are preserved as part of the earlier submission snapshot. Install Python rendering dependencies with `python -m pip install -r scripts/requirements-media.txt`. The generators derive regular and semibold static font instances from the licensed font already in the repository; temporary instances are not committed.

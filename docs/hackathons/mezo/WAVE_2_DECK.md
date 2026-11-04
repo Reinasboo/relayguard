@@ -18,6 +18,8 @@ style: |
   footer { color: #83909f; }
 ---
 
+> Archived earlier Wave 2 deck. The current candidate's editable deck is [wave2/DECK.md](./wave2/DECK.md); retain this version and its PDF as historical submission material.
+
 # RelayGuard
 
 Current submission materials: [Wave 2 package](wave2/SUBMISSION.md). This earlier deck is retained for history.

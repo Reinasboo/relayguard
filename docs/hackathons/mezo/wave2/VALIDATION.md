@@ -24,7 +24,13 @@ The evidence reader checks the token event's payer, exact amount and recipient. 
 
 No wallet transaction, new borrowing, token approval or payment was broadcast during this revision. The captured historical evidence and controlled policy scenarios are explicitly labelled.
 
-Read-only public-deployment checks also returned HTTP 200 for the existing app, wallet module and health route; HTTP 401 for the unauthenticated audit; and HTTP 402 for the paid resource with chain `eip155:31611`, canonical MUSD, exact `1000000000000000` base units and the expected merchant. This checks the existing deployment, not deployment of the local changes.
+Read-only public-deployment checks at the time also returned HTTP 200 for the app, wallet module and health route; HTTP 401 for the unauthenticated audit; and HTTP 402 for the paid resource with chain `eip155:31611`, canonical MUSD, exact `1000000000000000` base units and the expected merchant. The candidate was subsequently deployed; see the current production spot check below.
+
+## Post-deployment spot check — November 4, 2026
+
+- Vercel reports the current source deployment as `READY`; `/review` and `/submission/relayguard-wave2.pdf` returned HTTP 200.
+- The paid resource returned HTTP 502 after the facilitator supported-capability request timed out. Treat x402 availability as unverified until a fresh valid 402 challenge is observed.
+- The production environment-variable inventory did not include `RELAYGUARD_OPERATOR_USER_IDS` or `RELAYGUARD_CHECKOUT_SECRET`. The wallet-verification migration remains an open item in the release checklist.
 
 ## Materials
 
@@ -36,4 +42,4 @@ Read-only public-deployment checks also returned HTTP 200 for the existing app, 
 
 ## Not validated by these checks
 
-Production deployment of this revision, application of the hosted migration, real-wallet signing on a second device, a fresh paid browser x402 flow, Postgres concurrency/failure injection, customer traction and mainnet readiness. These remain explicit release or pilot gates.
+Application of the hosted migration, production operator/checkout configuration, a fresh paid browser x402 flow, real-wallet signing on a second device, Postgres concurrency/failure injection, customer traction and mainnet readiness. These remain explicit release or pilot gates.

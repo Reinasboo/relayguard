@@ -76,9 +76,11 @@ FFmpeg and Chrome must be installed. The stock narration uses the local Microsof
 
 ## Deployment order
 
+The current source is deployed; Vercel reports it ready and `/review` plus the submission PDF returned HTTP 200. This is not release acceptance: the production spot check found the operator allowlist and checkout secret are absent, and the x402 endpoint returned 502 after a facilitator timeout. Complete the remaining gates in the [release checklist](RELEASE_CHECKLIST.md).
+
 1. Back up the database and apply the new forward migration.
 2. Configure operator UUIDs and checkout secret in the deployment environment.
-3. Build and deploy this revision, then verify `/review`, static assets, account roles, invoice retry and x402 challenge.
+3. Recheck `/review`, static assets, account roles, invoice retry and a valid x402 challenge after configuration.
 4. Repeat the buyer checkout on a second device with a real wallet and approved Testnet funds.
 5. Add the actual hosted video and deployed-revision links to the submission.
 

@@ -15,7 +15,7 @@ For an operator spending MUSD liquidity, RelayGuard also reads Mezo's TroveManag
 **Access & Distribution.** Mezo supplies the payment asset, network, protocol state, and x402 integration. RelayGuard packages them into merchant workflows that do not require merchants to build payment infrastructure.
 
 - Existing public deployment: https://relayguard.vercel.app
-- New reviewer walkthrough, after deploying this revision: https://relayguard.vercel.app/review
+- Reviewer walkthrough: https://relayguard.vercel.app/review (HTTP 200 on the November 4 deployment check).
 - Local review without accounts, keys, or funds: `npm ci`, then `npm run review`, then open `/review`.
 - Historical evidence: [transaction ledger](../TEST_RESULTS.md).
 - Current implementation: [technical brief](TECHNICAL.md).
@@ -54,7 +54,7 @@ The operator risk overlay does not claim that spending MUSD changes a trove coll
 
 ## Delivery boundary
 
-The changes in this revision require deployment, the new database migration, and an operator-user allowlist before the public app reflects them. A fresh real-wallet, second-device checkout and full recorded paid x402 browser flow remain release checks. Production operation also needs signer custody, shared rate limits, monitoring, backups, Postgres failure/concurrency tests, and independent security review.
+This source revision is deployed and Vercel reports it ready. The November 4 production spot check returned HTTP 200 for `/review` and the submission PDF, but HTTP 502 for the paid x402 endpoint after its facilitator capability request timed out. The wallet-verification migration and production operator/checkout variables are still release gates. A fresh real-wallet, second-device checkout and full recorded paid x402 browser flow also remain unverified. Production operation needs signer custody, shared rate limits, monitoring, backups, Postgres failure/concurrency tests, and independent security review.
 
 ## Official event details, checked November 4, 2026
 

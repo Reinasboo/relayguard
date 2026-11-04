@@ -1,6 +1,6 @@
 # Submission form copy
 
-Use this copy after deploying and checking the current candidate. The event requires a live link, public repository, deck, and a two-minute pitch video. Upload the actual PDF/video and use their real public URLs. Do not paste local file paths as public deliverables.
+Use this copy only after all open gates in the [release checklist](RELEASE_CHECKLIST.md) are cleared. The source revision is deployed, but the x402 challenge and production operator/checkout configuration still need verification. The event requires a live link, public repository, deck, and a two-minute pitch video. Upload the actual PDF/video and use their real public URLs. Do not paste local file paths as public deliverables.
 
 **Project name:** RelayGuard
 
@@ -32,6 +32,6 @@ Use this copy after deploying and checking the current candidate. The event requ
 
 **Team:** Praise, solo builder. Product design, full-stack implementation, Mezo integration and demo materials. Use the founder's existing AKINDO profile for verified X/LinkedIn details; no social URL has been invented here.
 
-**Deck:** `public/submission/relayguard-wave2.pdf` in this revision. After deployment: `/submission/relayguard-wave2.pdf`.
+**Deck:** `public/submission/relayguard-wave2.pdf`, served at `/submission/relayguard-wave2.pdf`.
 
 **Video:** `output/video/relayguard-wave2-pitch.mp4`, two-minute narrated local candidate cut. Stock system narration is labelled. Upload and verify playback, or replace the voice with the founder's recording from NARRATION.txt, before pasting the hosted URL.

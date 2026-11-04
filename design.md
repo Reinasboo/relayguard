@@ -86,9 +86,9 @@ spacing:
 
 ## RelayGuard implementation direction
 
-A quiet charcoal payment workspace, with clear settlement records and lime reserved for the next action. Dark surfaces reduce visual competition in a transaction-heavy workspace; the reviewer uses the same identity. Manrope provides open, readable numerals and compact product labels.
+A quiet navy payment workspace, with clear settlement records and lime reserved for the next action. Dark surfaces reduce visual competition in a transaction-heavy workspace; the reviewer uses the same identity. Manrope provides open, readable numerals and compact product labels.
 
-Palette: canvas #181a19, surface #202321, raised #282c29, border #3b413c, text #f0f2ed, secondary #b1b9b1, accent #b7f566, warning #e2bc7d, danger #eea39a. Status colors describe actual states.
+Palette: canvas #0c1117, surface #111820, raised #151e28, border #24303d, text #e8edf3, secondary #83909f, accent #b7f566, warning #f0a35d, danger #ff7777. Status colors describe actual states. The existing subtle navy radial canvas is retained; new gradients or glow effects are not part of the system.
 
 Type: 14px metadata, 16px body and inputs, 20px section headings, 28px mobile page titles, 40px desktop titles. Spacing: 4, 8, 12, 16, 24, 32, 48, 64px. Radii: 4 and 8px. No decorative orbit illustrations, gradients, glow, repeating uppercase eyebrows, or numbered cards outside real setup sequences.
 

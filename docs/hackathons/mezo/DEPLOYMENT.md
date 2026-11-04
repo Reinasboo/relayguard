@@ -1,5 +1,7 @@
 # Mezo Deployment
 
+> Historical deployment notes, last substantially verified before the November 4 Wave 2 candidate. For current deployment status, use the [Wave 2 release checklist](./wave2/RELEASE_CHECKLIST.md) and [validation report](./wave2/VALIDATION.md). Do not treat the historical environment or migration inventory below as the current production configuration.
+
 ## Integrated testnet demo
 
 1. Use Node.js 22.5+ and run `npm install`.

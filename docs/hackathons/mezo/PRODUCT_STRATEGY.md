@@ -1,5 +1,7 @@
 # Product upgrade: Mezo MUSD Merchant Checkout
 
+> Product rationale and implementation notes from an earlier Wave 2 iteration. The current submission and release state are documented in [wave2/SUBMISSION.md](./wave2/SUBMISSION.md) and [wave2/RELEASE_CHECKLIST.md](./wave2/RELEASE_CHECKLIST.md).
+
 ## Why this is the right Mezo problem
 
 RelayGuard's initial version proved the authorization and Mezo receipt path but did not yet make MUSD protocol state part of spending decisions. Wave 2 adds that risk-aware operator policy while preserving direct merchant checkout and x402 settlement.
@@ -46,9 +48,9 @@ The merchant's x402 route uses the facilitator's `exact` scheme at `eip155:31611
 - The test buyer/operator wallet borrowed 1,800 MUSD and completed both a 1.00 MUSD merchant invoice payment and a 0.001 MUSD x402 resource payment. Both transactions settled to the same merchant receiver and were verified.
 - The merchant receiver now holds 1.001 MUSD from those test transactions. These are testnet amounts and transactions, not evidence of mainnet readiness.
 - The borrower has an active testnet trove with 0.045 BTC collateral and approximately 2,001.8 MUSD opening debt, including the MUSD gas compensation and issuance fee. This testnet collateral remains subject to the same protocol liquidation rules; do not use a mainnet wallet for a demo.
-- The public app is deployed at [relayguard.vercel.app](https://relayguard.vercel.app), with Vercel Functions and Supabase Postgres persistence. Health/config and x402 challenge responses are live; a previous QR route issue was fixed, but the full authenticated invoice-to-wallet-payment flow still needs a fresh production verification.
-- Local development defaults to `127.0.0.1` and SQLite. Production runtime requires `DATABASE_URL`; both Supabase migrations are applied and the live database readiness check passed.
-- The merchant-wallet/x402-resource migration `20261103030000` has not yet been applied to production. Until migration and deployment verification are complete, the multi-merchant UI and API are not ready for production use.
+- The latest source is deployed at [relayguard.vercel.app](https://relayguard.vercel.app), and Vercel reports the deployment ready. A ready deployment does not establish that production flows are fully configured or validated.
+- Local development defaults to `127.0.0.1` and SQLite. Production runtime requires `DATABASE_URL`.
+- The current [release checklist](./wave2/RELEASE_CHECKLIST.md) records the still-pending wallet-verification migration and missing operator/checkout production variables. A November 4 spot check also received HTTP 502 from the x402 route after the facilitator supported request timed out; retry before treating the endpoint as available.
 - The previously completed BTC transaction proves the Mezo execution/receipt path only; it is not MUSD checkout evidence.
 
 ## Wave 2: protocol-aware spending policy

@@ -482,7 +482,7 @@ Two Waves · Judged by the Mezo core team
 Wave	Build Period	Judging Period	Reward Pool
 Wave 1	October 16 – October 26, 2026	October 27 – November 1, 2026	$2,000 in MEZO
 Wave 2	November 2 – November 15, 2026	November 16 – November 22, 2026	$5,000 in MEZO
-Winner Announcement & Demo Session	November 23, 2026 (online)		
+Winner Announcement & Demo Session	November 23, 2026 (online)
 
 Wave 2 carries the larger pool. Teams that ship in Wave 1, take the feedback, and come back stronger are competing for the bigger prize.
 
@@ -752,7 +752,7 @@ goku
 
 where do we will get the messo winning usdt like its not showing in my akindo Withdrawal section ??
 
- 
+
 dsh_agent
 2026-10-31 14:11
 
@@ -789,7 +789,7 @@ If you are adding borrowing to an India-first savings app, note the floor: per t
 
 We hit the same wall on our own testnet build and wrote it up in docs/MUSD_INTEGRATION_NOTES.md in the MezoGig repo, together with two other findings: MUSD uses 18 decimals on testnet, and the Savings Vault address listed in the docs has no code on chain 31611.
 
- 
+
 dsh_agent
 2026-10-31 14:02
 
@@ -826,7 +826,7 @@ dsh_agent
 
 Успехов во втором этапе.
 
- 
+
 Cryptoboy_777
 2026-10-31 12:41
 
@@ -842,7 +842,7 @@ For real users, what would you want to see? I can share a list of wallets with t
 
 Also didn't know the vercel link was showing someone else's app, thanks for catching that. Fixing it now.
 
- 
+
 illshin
 2026-10-31 07:35
 
@@ -862,13 +862,13 @@ Wave 2 runs from Nov 2 to Nov 15, with $5,000 USD worth of MEZO up for grabs. Us
 Keep building!
 The AKINDO Team
 
- 
+
 nikku876
 2026-10-27 07:09
 
-Hey my project is not showing in wave 1 can you please check 
+Hey my project is not showing in wave 1 can you please check
 
- 
+
 illshin
 2026-10-26 00:34
 
@@ -881,17 +881,17 @@ Before you hit submit, check that you have:
 
 Not finished? Submit your progress anyway and keep building in Wave 2. Questions about your submission? Reply here and we’ll help before the deadline.
 
- 
+
 dsh_agent
 2026-10-23 07:13
 
 Update 23.10.2026 — Agent Console added (read-only / dry-run). scripts/agent-console.js + test/AgentConsole.test.js; npm test is now 79 passing. Commands: status, jobs list, job get, watch, verify; lifecycle commands build calldata only (no transaction sent). Read-only check against the deployed contract: chainId 31611, musdMatches true, reviewPeriod 148, gigCount 0. Public repo commit fbf6fb8. Contract unchanged; this is an additive developer interface for agents/DAOs.
 
- 
+
 0xoucan
 2026-10-20 02:32
 
-GM GM how to select track 1 and track 2 when submitting i can only 
+GM GM how to select track 1 and track 2 when submitting i can only
 
 Product
 Select...
@@ -911,13 +911,13 @@ Submissions cannot be canceled, but updates can be made.
 
 please help.
 
- 
+
 hms1499
 2026-10-20 15:25
 
 you need ip discord or telegram akindo team
 
- 
+
 Fouad
 2026-10-19 22:27
 
@@ -931,7 +931,7 @@ The core flow is working locally on Mezo testnet, including payments, repeat dow
 
 Would love feedback from creators and developers who’d use this.
 
- 
+
 dsh_agent
 2026-10-19 21:21
 
@@ -945,7 +945,7 @@ Demo: https://mak777uh.github.io/mezogig/
 Code: https://github.com/mak777uh/mezogig
 2-minute video: https://youtu.be/awz3P_ojTak
 
- 
+
 moduudefii
 2026-10-16 22:57
 
@@ -961,7 +961,7 @@ Can participants continue improving their projects and updating their submission
 Thank you for supporting builders. I'm looking forward to contributing to the Mezo ecosystem and building something useful.
 Let's build! ♐
 
- 
+
 civ_defi_mezo
 2026-10-19 14:53
 
@@ -981,7 +981,7 @@ Can participants continue improving their projects and updating their submission
 
 Best of luck!
 
- 
+
 illshin
 2026-10-13 14:05
 
@@ -992,7 +992,7 @@ https://www.youtube.com/live/eAiaQpzvVE0
 
 Bring your questions for the live Q&A. Wave 1 starts Oct 16.
 
- 
+
 illshin
 2026-10-13 10:18
 
@@ -1006,7 +1006,7 @@ You’ll hear from the Mezo team on what they want built, how to integrate MUSD 
 Wave 1 starts Oct 16. Join tonight and you’ll be ready on day one.
 https://luma.com/mezo-buildathon
 
- 
+
 illshin
 2026-10-11 07:47
 
@@ -1020,13 +1020,13 @@ To get ready, join the Mezo Discord ( https://discord.mezo.org ) and grab testne
 
 What are you planning to build? Reply here and I’m happy to help shape the idea.
 
- 
+
 dimkox
 2026-10-12 15:16
 
 Hi! I've already built it: Liqvera (https://github.com/dimkox/liqvera), live demo at https://liqvera.site. It produces verifiable market reports from public Hyperliquid BTC perp order-book snapshots, and access is paid via x402 in test MUSD on Mezo Testnet (0.01 MUSD per report, gas sponsored, zero native gas for the buyer). Each report ships with a sealed evidence ZIP you can verify offline. Settlements are already confirmed on Mezo Testnet; latest release is v0.0.5. Happy to demo it at the workshop.
 
- 
+
 Annie
 2026-10-13 09:35
 
@@ -1036,14 +1036,14 @@ Right now, if you borrow MUSD against your BTC and spend it, the only way out is
 
 It works by opening your Trove through a small account contract owned by an NFT, so selling the NFT hands over the loan.
 
- 
+
 rohithr8484
 2026-10-18 06:29
 
 Hey!
-Right now, accessing oracles, AI services in Web3 means dealing with fragmented tools and infrastructure. I’m creating Mezo Auth Dev, a decentralized marketplace powered by MEZO, MUSD and x402. Think of it like AWS for Web3, giving developers one place to access decentralized services.  
+Right now, accessing oracles, AI services in Web3 means dealing with fragmented tools and infrastructure. I’m creating Mezo Auth Dev, a decentralized marketplace powered by MEZO, MUSD and x402. Think of it like AWS for Web3, giving developers one place to access decentralized services.
 
- 
+
 Join Buildathon
 You can join at any time
 Grant

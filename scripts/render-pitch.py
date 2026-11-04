@@ -10,6 +10,7 @@ import subprocess
 import re
 import pymupdf
 from PIL import Image, ImageDraw, ImageFont
+from submission_fonts import font_paths
 
 root = Path(__file__).resolve().parents[1]
 out = root / "output/video"
@@ -31,13 +32,13 @@ for number in [3,6,7,8,9]: pdf[number-1].get_pixmap(matrix=pymupdf.Matrix(2,2)).
 timeline=[(root/"tmp/demo-frames/scene-01.png",scaled[0]),(tmp/"slide-3.png",scaled[1]),(tmp/"slide-6.png",scaled[2])]
 timeline.extend((root/f"tmp/demo-frames/scene-{i:02}.png",scaled[3]/4) for i in range(3,7))
 timeline.extend([(tmp/"slide-7.png",scaled[4]),(tmp/"slide-8.png",scaled[5]),(tmp/"slide-9.png",6)])
-font=ImageFont.truetype("C:/Windows/Fonts/arial.ttf",19)
+font=ImageFont.truetype(str(font_paths(root)[0]),19)
 manifest=["ffconcat version 1.0"]
 for index,(source,duration) in enumerate(timeline):
     image=Image.open(source).convert("RGB").resize((1920,1080),Image.Resampling.LANCZOS)
     draw=ImageDraw.Draw(image)
-    draw.rectangle((0,1016,1920,1080),fill="#0c1117")
-    draw.text((65,1040),"CURRENT LOCAL BUILD / MEZO TESTNET / STOCK VOICE NARRATION",font=font,fill="#a2aca8")
+    draw.rectangle((0,1016,1920,1080),fill="#181a19")
+    draw.text((65,1040),"CURRENT LOCAL BUILD / MEZO TESTNET / STOCK VOICE NARRATION",font=font,fill="#b1b9b1")
     image.save(tmp/f"frame-{index:02}.png")
     manifest.extend([f"file 'frame-{index:02}.png'",f"duration {duration:.6f}"])
 manifest.append(f"file 'frame-{len(timeline)-1:02}.png'")

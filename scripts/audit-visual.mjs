@@ -20,6 +20,7 @@ try {
   // creating accounts, signing messages or broadcasting payments.
   let fixture = false;
   let signedIn = false;
+  let populated = false;
   let invoiceStatus = 'open';
   await page.route('**/api/config', async route => {
     const response = await route.fetch(); const config = await response.json();
@@ -28,10 +29,15 @@ try {
   });
   const merchantAddress = '0x840E5bBF20D725f581752f8A4021ADd730550d47';
   await page.route('**/api/merchant', route => fixture ? route.fulfill({json:{name:'Visual audit fixture',address:merchantAddress,tokenAddress:'0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503',walletVerified:signedIn}}) : route.continue());
-  await page.route('**/api/invoices', route => fixture ? route.fulfill({json:{invoices:[]}}) : route.continue());
-  await page.route('**/api/merchant/x402/resources', route => fixture ? route.fulfill({json:{resources:[]}}) : route.continue());
+  await page.route('**/api/invoices', route => fixture ? route.fulfill({json:{invoices:populated ? [
+    {id:'visual-invoice',description:'Digital access pass / visual fixture',amountAtomic:'1000000000000000000',createdAt:Date.now(),status:'paid'},
+    {id:'visual-invoice-pending',description:'Developer subscription with a deliberately long product description / visual fixture',amountAtomic:'12000000000000000000',createdAt:Date.now(),status:'open'}
+  ] : []}}) : route.continue());
+  await page.route('**/api/merchant/x402/resources', route => fixture ? route.fulfill({json:{resources:populated ? [
+    {id:'visual-resource',name:'Premium data endpoint / visual fixture',routePath:'/api/premium/subscriptions/verified-resource',method:'GET',price:'$0.01',keyPrefix:'visual_fixture',keyRevokedAt:null}
+  ] : []}}) : route.continue());
   await page.route('**/api/invoices/visual-fixture', route => route.fulfill({json:{invoice:{id:'visual-fixture',merchantName:'Visual audit fixture',merchantAddress,amountAtomic:'1000000000000000000',description:'Digital access pass · visual fixture',status:invoiceStatus,expiresAt:Date.now()+3600000}}}));
-  for (const width of [320,390,768,1440]) {
+  for (const width of [320,390,768,1024,1440]) {
     await page.setViewportSize({width,height:900});
     for (const [name,path] of [['merchant','/#merchant'],['faq','/#faq'],['treasury','/#console'],['review','/review'],['checkout-error','/pay/visual-missing']]) {
       await page.goto('about:blank');
@@ -42,16 +48,24 @@ try {
         heading:[...document.querySelectorAll('h1,h2')].find(el=>el.getBoundingClientRect().height)?.textContent,
       }));
       results.push({name,width,...state});
+      await page.evaluate(()=>scrollTo(0,0));
       await page.screenshot({path:`${output}/${name}-${width}.png`,fullPage:true});
     }
     fixture = true;
-    for (const [name,path] of [['account-form','/#merchant'],['checkout-open','/pay/visual-fixture'],['checkout-paid','/pay/visual-fixture'],['account-connected','/#merchant']]) {
-      signedIn = name==='account-connected';
+    for (const [name,path] of [['account-form','/#merchant'],['checkout-open','/pay/visual-fixture'],['checkout-paid','/pay/visual-fixture'],['account-connected','/#merchant'],['merchant-populated','/#merchant']]) {
+      populated = name==='merchant-populated';
+      signedIn = name==='account-connected'||populated;
       await page.evaluate(signedIn => signedIn ? localStorage.setItem('relayguard.authSession',JSON.stringify({access_token:'visual-fixture',expires_at:Math.floor(Date.now()/1000)+3600})) : localStorage.removeItem('relayguard.authSession'), signedIn);
       invoiceStatus = name==='checkout-paid' ? 'paid' : 'open';
       await page.goto('about:blank'); await page.goto(origin+path); await page.waitForTimeout(500);
+      if(populated) {
+        await page.locator('.merchant-x402>summary').click();
+        await page.locator('.x402-panel>summary').click();
+        await page.locator('.invoice-list-item').first().waitFor();
+      }
       const fits = await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
       results.push({name,width,fits,fixture:true});
+      await page.evaluate(()=>scrollTo(0,0));
       await page.screenshot({path:`${output}/${name}-${width}.png`,fullPage:true});
       if(signedIn) {
         const button = page.locator('#auth-signout'); await button.waitFor({state:'visible'});
@@ -61,6 +75,7 @@ try {
     }
     await page.evaluate(()=>localStorage.removeItem('relayguard.authSession'));
     signedIn = false;
+    populated = false;
     fixture = false;
   }
   await page.goto(origin+'/#merchant');

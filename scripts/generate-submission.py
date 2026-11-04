@@ -14,6 +14,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.colors import HexColor
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
+from submission_fonts import font_paths
 
 ROOT = Path(__file__).resolve().parents[1]
 CAPTURES = ROOT / "output/review"
@@ -25,12 +26,12 @@ for filename in ["01-review-desktop.png", "02-mezo-evidence.png", "03-policy-lab
     if not (CAPTURES / filename).exists():
         raise SystemExit("Run npm run verify:ui before generating submission materials.")
 
-fonts = Path("C:/Windows/Fonts")
-pdfmetrics.registerFont(TTFont("RG", str(fonts / "arial.ttf")))
-pdfmetrics.registerFont(TTFont("RG-Bold", str(fonts / "arialbd.ttf")))
+regular, semibold = font_paths(ROOT)
+pdfmetrics.registerFont(TTFont("RG", str(regular)))
+pdfmetrics.registerFont(TTFont("RG-Bold", str(semibold)))
 pdfmetrics.registerFontFamily("RG", normal="RG", bold="RG-Bold")
 W, H = 960, 540
-BG, TEXT, MUTED, GREEN, LINE = map(HexColor, ["#0c1117", "#eef1e9", "#a2aca8", "#b7f566", "#334536"])
+BG, TEXT, MUTED, GREEN, LINE = map(HexColor, ["#181a19", "#f0f2ed", "#b1b9b1", "#b7f566", "#3b413c"])
 pdf = OUT / "relayguard-wave2.pdf"
 c = canvas.Canvas(str(pdf), pagesize=(W, H))
 c.setTitle("RelayGuard — Mezo Buildathon Wave 2")

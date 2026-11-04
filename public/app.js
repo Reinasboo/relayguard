@@ -1313,7 +1313,7 @@ function renderMerchantSetup(signedIn, walletVerified, hasInvoice) {
   ["account", "wallet", "invoice"].forEach((step, index) => {
     const element = byId(`setup-${step}`);
     element.dataset.state = states[index];
-    element.querySelector("b").textContent = states[index] === "done" ? "COMPLETE" : states[index] === "current" ? "YOUR NEXT STEP" : "UP NEXT";
+    element.querySelector("b").textContent = states[index] === "done" ? "Complete" : states[index] === "current" ? "Next step" : "Upcoming";
     if (states[index] === "current") element.setAttribute("aria-current", "step");
     else element.removeAttribute("aria-current");
   });

@@ -11,6 +11,7 @@ supabase/.temp/
 coverage/
 output/
 tmp/
+__pycache__/
 .env.supabase.local
 .env.app.local
 .env.wallets.local

@@ -4,21 +4,27 @@
       "name": "merchant",
       "width": 320,
       "fits": true,
-      "overflow": [],
-      "heading": "Get paid in MUSD.Keep your wallet."
+      "overflow": [
+        "rail-link"
+      ],
+      "heading": "Accept MUSD payments."
     },
     {
       "name": "faq",
       "width": 320,
       "fits": true,
-      "overflow": [],
-      "heading": "Good questions.Clear answers."
+      "overflow": [
+        "rail-link"
+      ],
+      "heading": "Payments, explained."
     },
     {
       "name": "treasury",
       "width": 320,
       "fits": true,
-      "overflow": [],
+      "overflow": [
+        "rail-link"
+      ],
       "heading": "Payments, governed by policy."
     },
     {
@@ -26,7 +32,7 @@
       "width": 320,
       "fits": true,
       "overflow": [],
-      "heading": "Turn MUSDinto paid orders."
+      "heading": "Accept MUSD.Verify the payment."
     },
     {
       "name": "checkout-error",
@@ -54,6 +60,12 @@
     },
     {
       "name": "account-connected",
+      "width": 320,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant-populated",
       "width": 320,
       "fits": true,
       "fixture": true
@@ -62,21 +74,27 @@
       "name": "merchant",
       "width": 390,
       "fits": true,
-      "overflow": [],
-      "heading": "Get paid in MUSD.Keep your wallet."
+      "overflow": [
+        "rail-link"
+      ],
+      "heading": "Accept MUSD payments."
     },
     {
       "name": "faq",
       "width": 390,
       "fits": true,
-      "overflow": [],
-      "heading": "Good questions.Clear answers."
+      "overflow": [
+        "rail-link"
+      ],
+      "heading": "Payments, explained."
     },
     {
       "name": "treasury",
       "width": 390,
       "fits": true,
-      "overflow": [],
+      "overflow": [
+        "rail-link"
+      ],
       "heading": "Payments, governed by policy."
     },
     {
@@ -84,7 +102,7 @@
       "width": 390,
       "fits": true,
       "overflow": [],
-      "heading": "Turn MUSDinto paid orders."
+      "heading": "Accept MUSD.Verify the payment."
     },
     {
       "name": "checkout-error",
@@ -112,6 +130,12 @@
     },
     {
       "name": "account-connected",
+      "width": 390,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant-populated",
       "width": 390,
       "fits": true,
       "fixture": true
@@ -121,14 +145,14 @@
       "width": 768,
       "fits": true,
       "overflow": [],
-      "heading": "Get paid in MUSD.Keep your wallet."
+      "heading": "Accept MUSD payments."
     },
     {
       "name": "faq",
       "width": 768,
       "fits": true,
       "overflow": [],
-      "heading": "Good questions.Clear answers."
+      "heading": "Payments, explained."
     },
     {
       "name": "treasury",
@@ -142,7 +166,7 @@
       "width": 768,
       "fits": true,
       "overflow": [],
-      "heading": "Turn MUSDinto paid orders."
+      "heading": "Accept MUSD.Verify the payment."
     },
     {
       "name": "checkout-error",
@@ -171,6 +195,76 @@
     {
       "name": "account-connected",
       "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant-populated",
+      "width": 768,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant",
+      "width": 1024,
+      "fits": true,
+      "overflow": [],
+      "heading": "Accept MUSD payments."
+    },
+    {
+      "name": "faq",
+      "width": 1024,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, explained."
+    },
+    {
+      "name": "treasury",
+      "width": 1024,
+      "fits": true,
+      "overflow": [],
+      "heading": "Payments, governed by policy."
+    },
+    {
+      "name": "review",
+      "width": 1024,
+      "fits": true,
+      "overflow": [],
+      "heading": "Accept MUSD.Verify the payment."
+    },
+    {
+      "name": "checkout-error",
+      "width": 1024,
+      "fits": true,
+      "overflow": []
+    },
+    {
+      "name": "account-form",
+      "width": 1024,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-open",
+      "width": 1024,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "checkout-paid",
+      "width": 1024,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "account-connected",
+      "width": 1024,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant-populated",
+      "width": 1024,
       "fits": true,
       "fixture": true
     },
@@ -179,14 +273,14 @@
       "width": 1440,
       "fits": true,
       "overflow": [],
-      "heading": "Get paid in MUSD.Keep your wallet."
+      "heading": "Accept MUSD payments."
     },
     {
       "name": "faq",
       "width": 1440,
       "fits": true,
       "overflow": [],
-      "heading": "Good questions.Clear answers."
+      "heading": "Payments, explained."
     },
     {
       "name": "treasury",
@@ -200,7 +294,7 @@
       "width": 1440,
       "fits": true,
       "overflow": [],
-      "heading": "Turn MUSDinto paid orders."
+      "heading": "Accept MUSD.Verify the payment."
     },
     {
       "name": "checkout-error",
@@ -228,6 +322,12 @@
     },
     {
       "name": "account-connected",
+      "width": 1440,
+      "fits": true,
+      "fixture": true
+    },
+    {
+      "name": "merchant-populated",
       "width": 1440,
       "fits": true,
       "fixture": true

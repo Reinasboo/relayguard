@@ -8,16 +8,16 @@
 }
 :root  {
   color-scheme:dark;
-  --canvas:#181a19;
-  --surface:#202321;
-  --raised:#282c29;
-  --border:#3b413c;
-  --text:#f0f2ed;
-  --muted:#b1b9b1;
+  --canvas:#0c1117;
+  --surface:#111820;
+  --raised:#151e28;
+  --border:#24303d;
+  --text:#e8edf3;
+  --muted:#83909f;
   --accent:#b7f566;
-  --on-accent:#202719;
-  --warning:#e2bc7d;
-  --danger:#eea39a;
+  --on-accent:#172016;
+  --warning:#f0a35d;
+  --danger:#ff7777;
   font:400 16px/1.5 Manrope,sans-serif;
   color:var(--text);
   background:var(--canvas);
@@ -31,7 +31,7 @@ html  {
 body  {
   margin:0;
   min-width:0;
-  background:var(--canvas);
+  background:radial-gradient(ellipse at 72% -16%,#1d2a34 0,transparent 36%),var(--canvas);
 }
 h1,h2,h3,p  {
   margin:0;
@@ -277,7 +277,7 @@ pre  {
   background:var(--surface);
 }
 .wallet-picker::backdrop  {
-  background:#181a19dd;
+  background:#0c1117dd;
 }
 .wallet-picker form  {
   display:flex;

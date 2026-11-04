@@ -1050,6 +1050,10 @@ async function loadMerchantWorkspace() {
     if (loadSequence !== merchantLoadSequence) return;
     if (wasSignedIn && !authSession?.access_token) return;
     console.error("Merchant workspace could not be loaded:", error);
+    byId("merchant-name").textContent = "Merchant unavailable";
+    byId("merchant-address").textContent = "Retry loading the merchant workspace below";
+    byId("invoice-button").disabled = true;
+    byId("x402-resource-button").disabled = true;
     const list = byId("invoice-list");
     list.replaceChildren();
     const message = document.createElement("div");
@@ -1363,7 +1367,7 @@ async function loadAppConfig() {
       : "x402 disabled";
     byId("pay-x402-resource").disabled = !appConfig.x402.enabled;
     if (!appConfig.x402.enabled) {
-      byId("x402-result").textContent = "Enable X402_ENABLED and set X402_PAY_TO to use the paid API resource.";
+      byId("x402-result").textContent = "Paid API access is not available on this deployment yet. You can still explore the payment evidence and policy preview.";
       byId("x402-result").classList.remove("hidden");
     }
     signInButton.textContent = "Sign in";
@@ -1564,6 +1568,7 @@ async function loadCheckoutPage() {
   byId("checkout-loading").classList.remove("hidden");
   byId("checkout-loading").replaceChildren();
   const loadingTitle = document.createElement("strong");
+  byId("checkout-state-tag").textContent = "LOADING INVOICE";
   loadingTitle.textContent = "Loading invoice";
   const loadingMessage = document.createElement("span");
   loadingMessage.textContent = "Retrieving invoice and merchant details.";
@@ -1672,6 +1677,8 @@ async function loadCheckoutPage() {
     byId("checkout-loading").replaceChildren();
     const message = document.createElement("strong");
     message.textContent = "Invoice could not be loaded";
+    byId("checkout-state-tag").textContent = "INVOICE UNAVAILABLE";
+    byId("checkout-state-tag").className = "verified-tag checkout-status danger";
     const details = document.createElement("span");
     details.textContent = error.message;
     const retry = actionButton("Retry loading invoice", "button button-quiet", () => void loadCheckoutPage());
@@ -2184,7 +2191,7 @@ document.querySelectorAll("[data-view]").forEach((link) => {
     event.preventDefault();
     const view = link.dataset.view;
     if (!["console", "merchant", "faq"].includes(view)) return;
-    history.replaceState(null, "", view === "console" ? "/" : `/#${view}`);
+    history.pushState(null, "", `/#${view}`);
     setView(view);
     if (view === "console") {
       void ensureAppConfig();
@@ -2196,6 +2203,15 @@ document.querySelectorAll("[data-view]").forEach((link) => {
     }
   });
 });
+function syncWorkspaceLocation() {
+  if (window.location.pathname.startsWith("/pay/")) return;
+  const view = ["#merchant", "#faq", "#console"].includes(location.hash) ? location.hash.slice(1) : "merchant";
+  setView(view);
+  if (view === "console") { void ensureAppConfig(); void loadHealth(); void loadAudit(); }
+  if (view === "merchant") { void ensureAppConfig(); void loadMerchantWorkspace(); }
+}
+window.addEventListener("popstate", syncWorkspaceLocation);
+window.addEventListener("hashchange", syncWorkspaceLocation);
 const faqSearch = byId("faq-search");
 const faqFilters = [...document.querySelectorAll("[data-faq-filter]")];
 const faqItems = [...document.querySelectorAll(".faq-item")];

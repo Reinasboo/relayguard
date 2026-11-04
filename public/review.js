@@ -51,6 +51,7 @@ let scenario = "healthy", sequence = 0;
 async function runPolicy() {
   const current = ++sequence;
   const button = byId("run-policy"); button.disabled = true;
+  byId("policy-result").setAttribute("aria-busy", "true");
   const titles = { authorized: "Within spending policy", approval_required: "Human approval required", blocked: "Payment blocked", paused: "MUSD spending paused" };
   try {
     const amount = byId("preview-amount").value.trim();
@@ -63,8 +64,14 @@ async function runPolicy() {
     byId("decision-reason").textContent = body.reason;
     byId("decision-risk").textContent = body.outcome === "paused" ? "02 · Protocol data unavailable: fail closed" : `02 · Example ICR ${Number(BigInt(body.icrAtomic) * 100n / 10n ** 18n)}%: Mezo risk rule applied`;
     byId("decision-next").textContent = body.outcome === "authorized" ? "03 · Separate explicit execution would still be required" : body.outcome === "approval_required" ? "03 · Wait for an assigned human operator" : "03 · Stop before signing or submission";
-  } catch (error) { if (current === sequence) { byId("decision-title").textContent = "Check the input"; byId("decision-reason").textContent = error.message; } }
-  finally { if (current === sequence) button.disabled = false; }
+  } catch (error) { if (current === sequence) {
+    byId("policy-result").dataset.outcome = "error";
+    byId("decision-title").textContent = "Check the input";
+    byId("decision-reason").textContent = error.message;
+    byId("decision-risk").textContent = "02 · No policy decision available";
+    byId("decision-next").textContent = "03 · Correct the amount or retry before continuing";
+  } }
+  finally { if (current === sequence) { button.disabled = false; byId("policy-result").removeAttribute("aria-busy"); } }
 }
 document.querySelectorAll("[data-scenario]").forEach((button) => button.addEventListener("click", () => {
   scenario = button.dataset.scenario;

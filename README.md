@@ -1,6 +1,6 @@
 # RelayGuard
 
-**Current Wave 2 candidate:** [submission package](docs/hackathons/mezo/wave2/SUBMISSION.md), [technical brief](docs/hackathons/mezo/wave2/TECHNICAL.md), [demo script](docs/hackathons/mezo/wave2/DEMO.md), and [release checklist](docs/hackathons/mezo/wave2/RELEASE_CHECKLIST.md).
+**Current Wave 2 submission:** [submission package](docs/hackathons/mezo/wave2/SUBMISSION.md), [technical brief](docs/hackathons/mezo/wave2/TECHNICAL.md), [demo, seven submission images and PDF](docs/hackathons/mezo/wave2/ARTIFACTS.md), and [release checklist](docs/hackathons/mezo/wave2/RELEASE_CHECKLIST.md).
 
 The [visual system](docs/hackathons/mezo/wave2/VISUAL_SYSTEM.md) follows the owner's [design rules](design.md). Shared primitives and page layouts have separate ownership; review screenshots cover 50 populated, empty and error states across phone, tablet and desktop widths.
 

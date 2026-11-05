@@ -1,0 +1,149 @@
+{
+  "capturedAt": "2026-11-05T09:27:26.141Z",
+  "assets": [
+    {
+      "id": "overview",
+      "path": "output/hackathon/captures/overview.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "merchant",
+      "path": "output/hackathon/captures/merchant.png",
+      "source": "http://127.0.0.1:4180",
+      "state": "Demo account",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "invoice",
+      "path": "output/hackathon/captures/invoice.png",
+      "source": "http://127.0.0.1:4180",
+      "state": "Demo account",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "invoice-created",
+      "path": "output/hackathon/captures/invoice-created.png",
+      "source": "http://127.0.0.1:4180",
+      "state": "Demo account",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "checkout",
+      "path": "output/hackathon/captures/checkout.png",
+      "source": "http://127.0.0.1:4180",
+      "state": "Demo account",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "api",
+      "path": "output/hackathon/captures/api.png",
+      "source": "http://127.0.0.1:4180",
+      "state": "Demo account",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "treasury",
+      "path": "output/hackathon/captures/treasury.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "policy-review",
+      "path": "output/hackathon/captures/policy-review.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "policy-blocked",
+      "path": "output/hackathon/captures/policy-blocked.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "policy-unavailable",
+      "path": "output/hackathon/captures/policy-unavailable.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "policy-healthy",
+      "path": "output/hackathon/captures/policy-healthy.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "evidence",
+      "path": "output/hackathon/captures/evidence.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet",
+      "commit": "f74c1a4"
+    },
+    {
+      "id": "x402-challenge",
+      "path": "output/hackathon/captures/x402-challenge.png",
+      "source": "https://relayguard.vercel.app",
+      "state": "Mezo Testnet / current UI preview",
+      "commit": "f74c1a4",
+      "uiSource": "public/review.js (UTF-8 fix)",
+      "dataSource": "https://relayguard.vercel.app/api/paid-resource",
+      "capturedAt": "2026-11-05T09:56:23.317Z"
+    }
+  ],
+  "evidence": {
+    "observedAt": 1793870763630,
+    "chainId": 31611,
+    "blockNumber": "16586182",
+    "token": {
+      "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+      "symbol": "MUSD",
+      "decimals": 18,
+      "deployed": true
+    },
+    "trove": {
+      "available": true,
+      "value": {
+        "status": "active",
+        "risk": "healthy",
+        "protocol": "mezo-musd-trove",
+        "borrower": "0x2D6d690df41807910826e799A34D7fB418480828",
+        "chainId": 31611,
+        "blockNumber": "16586182",
+        "observedAt": 1793870758000,
+        "priceAtomic": "80261069510000000000000",
+        "collateralAtomic": "45000000000000000",
+        "debtAtomic": "2002363301680403101034",
+        "icrAtomic": "1803742669933565614"
+      }
+    },
+    "payments": [
+      {
+        "label": "Customer invoice",
+        "amountAtomic": "1000000000000000000",
+        "amount": "1.00 MUSD",
+        "hash": "0x875fcecd46badf138205c83d048e7163b9fed5d7c810ef46c5e14ba52d655868",
+        "verified": false,
+        "status": "unavailable",
+        "blockNumber": null
+      },
+      {
+        "label": "Agent API access",
+        "amountAtomic": "1000000000000000",
+        "amount": "0.001 MUSD",
+        "hash": "0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c",
+        "verified": true,
+        "status": "verified",
+        "blockNumber": "16372674"
+      }
+    ],
+    "payer": "0x2D6d690df41807910826e799A34D7fB418480828",
+    "merchant": "0x840E5bBF20D725f581752f8A4021ADd730550d47",
+    "disclosure": "Read-only Mezo Testnet verification. Historical receipts are checked again now. Policy scenarios are controlled examples, not live authorizations."
+  }
+}

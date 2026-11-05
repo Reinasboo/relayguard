@@ -1,37 +1,45 @@
-# Submission form copy
+# RelayGuard / Mezo Wave 2
 
-Use this copy only after all open gates in the [release checklist](RELEASE_CHECKLIST.md) are cleared. The source revision is deployed, but the x402 challenge and production operator/checkout configuration still need verification. The event requires a live link, public repository, deck, and a two-minute pitch video. Upload the actual PDF/video and use their real public URLs. Do not paste local file paths as public deliverables.
+Use this copy only after all open gates in the [release checklist](RELEASE_CHECKLIST.md) are cleared. The source revision is deployed, but production configuration and the x402 challenge still need verification. Upload the actual PDF/video and use their public URLs; do not paste local file paths.
 
 **Project name:** RelayGuard
 
-**Category (3–5 words):** Mezo MUSD Payment Operations
+**Category:** MUSD Merchant Payment Operations
 
-**TL;DR:** RelayGuard connects Mezo MUSD payments to merchant invoices and x402 API access, with direct wallet settlement, exact receipt verification, and protocol-aware treasury controls.
+**TL;DR:** Sell in MUSD. Know what was paid. RelayGuard connects Mezo MUSD payments to merchant orders and paid API access, with direct wallet settlement and inspectable payment verification.
 
-**How it works:** Merchants verify their receiving wallet and create MUSD payment links or QR invoices. Buyers sign direct transfers from their own wallets. RelayGuard matches successful receipt events to the exact payer, merchant, token and amount before marking an order paid. API developers can add the Express x402 adapter to their own server: clients receive exact MUSD terms and middleware releases the protected response after facilitator settlement. Separately, an assigned operator's MUSD treasury policy reads TroveManager and PriceFeed at one pinned block, requires human review below a 150% app buffer, blocks below the 110% protocol minimum, and pauses when reads fail. The public reviewer route makes the implementation and historical settlement evidence easy to inspect without funds or an account.
+**Problem:** Receiving a token transfer does not tell a seller which order to fulfil. Merchants need a payment request, a defined price and expiry, and a reliable way to match a receipt to a customer. API developers need to confirm settlement before releasing a paid response.
 
-**Target group:** Small API vendors and digital merchants already using MUSD, initially in the Mezo developer ecosystem. Integration assumes familiarity with EVM wallets and, for APIs, Node/Express. Merchant configuration is designed for desktop; buyer checkout and public review support mobile. There is no validated regional expansion or paying-customer claim.
+**Solution:** Merchants verify a receiving wallet and create MUSD invoices with a checkout link or QR code. Customers review the amount, recipient and Mezo network before authorizing a direct payment. RelayGuard verifies the successful receipt and matching MUSD Transfer event against the payer, merchant and exact atomic amount before marking the invoice paid.
 
-**Tech stack:** Node.js 22+, TypeScript, Express, viem, Mezo Testnet MUSD/TroveManager/PriceFeed/BorrowerOperations, x402 core/EVM/Express SDKs and Mezo facilitator, Supabase Auth/Postgres, SQLite for local development, vanilla browser JavaScript/CSS, Vercel, Node test runner, and Playwright browser checks.
+**Developer experience:** Register a paid route and price, then add the Express x402 adapter to an API. An unpaid request receives HTTP 402 payment requirements. The facilitator settles the signed MUSD authorization before the protected response is released. The merchant retains the API and receives funds directly.
 
-**Track:** Track 2 — Access and Distribution for MUSD/MEZO.
+**Mezo integration:** Canonical MUSD on Mezo Testnet is the settlement asset. TroveManager and PriceFeed provide pinned-block collateral and debt context for the operator's treasury policy. Below the 150% application buffer, positive MUSD payments require human approval; below the 110% protocol minimum, spending is blocked. Unavailable reads pause authorization. Buyer checkout remains a separate wallet flow. The public reviewer exposes historical receipt evidence and controlled scenarios using the real policy functions.
 
-**Chain:** Mezo Testnet, chain ID 31611.
+**Target users:** API sellers and digital merchants already using MUSD, starting with the Mezo developer ecosystem.
 
-**Status:** Existing RelayGuard hackathon project extended for Wave 2. The current build already includes merchant-owned destinations, merchant-scoped x402 integrations, buyer preflight, optional separately reviewed Testnet borrowing, pinned trove evidence, and stale-policy handling. This revision adds the public evidence walkthrough, controlled previews using the actual policy functions, explicit operator permissions, signed checkout sessions, retry/recovery fixes, and rebuilt submission materials. Do not attribute every current feature to this last revision.
+**Business model:** Validate a $19/month merchant operations tier through a three-design-partner pilot. Measure time to first payment, checkout completion, repeat activity and willingness to pay.
 
-**Readiness:** Testnet application with historical on-chain settlements. Public baseline: https://relayguard.vercel.app. This candidate must be deployed and its migration applied before claiming that the public URL includes the latest changes. No mainnet readiness claim.
+**Wave 2 progress:** Merchant wallet ownership verification, merchant-scoped API resources, buyer preflight, optional separately reviewed Testnet borrowing, pinned trove evidence and stale-policy handling now sit alongside a public reviewer, explicit operator permissions, signed checkout sessions, payment retry/recovery, exact amount validation and a refined responsive interface. The updated submission includes a two-minute narrated demo, seven product images and a redesigned ten-page deck.
 
-**Public repository:** https://github.com/Reinasboo/relayguard
+**Implementation:** Node.js 22+, TypeScript, Express, viem, Mezo MUSD/TroveManager/PriceFeed/BorrowerOperations, x402 SDKs and Mezo facilitator, Supabase Auth/Postgres, SQLite for local development, Vercel, Node tests and Playwright. The automated suite contains 63 tests.
 
-**Three proposed milestones:**
+**Track:** Access & Distribution
 
-1. **By November 10, 2026:** apply the access-control migration, configure operator roles, deploy the candidate, and verify the reviewer and merchant routes.
-2. **By November 12, 2026:** complete approved real-wallet checkout/x402 checks, publish the two-minute pitch, and verify every submission link. This targets the earlier deadline shown in the platform widget.
-3. **By December 1, 2026:** run three design-partner pilots and report setup time, checkout completion, repeat use and willingness to pay. Pilot recruitment and these targets remain unvalidated plans.
+**Network:** Mezo Testnet / chain 31611
 
-**Team:** Praise, solo builder. Product design, full-stack implementation, Mezo integration and demo materials. Use the founder's existing AKINDO profile for verified X/LinkedIn details; no social URL has been invented here.
+**Product:** https://relayguard.vercel.app
 
-**Deck:** `public/submission/relayguard-wave2.pdf`, served at `/submission/relayguard-wave2.pdf`.
+**Public reviewer:** https://relayguard.vercel.app/review
 
-**Video:** `output/video/relayguard-wave2-pitch.mp4`, two-minute narrated local candidate cut. Stock system narration is labelled. Upload and verify playback, or replace the voice with the founder's recording from NARRATION.txt, before pasting the hosted URL.
+**Repository:** https://github.com/Reinasboo/relayguard
+
+**Deck:** https://relayguard.vercel.app/submission/relayguard-wave2.pdf
+
+**Demo:** `output/hackathon/video/relayguard-demo.mp4`
+
+**Submission images:** `output/hackathon/screens/01-merchant-workspace.png` through `07-settlement-evidence.png`
+
+**Team:** Praise, solo builder. Product design, full-stack engineering and Mezo integration.
+
+**Next milestones:** Recruit three design partners; complete observed merchant activation and payment sessions; publish pilot findings on first payment, completion, repeat use and pricing.

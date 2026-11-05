@@ -1,48 +1,16 @@
-# RelayGuard: MUSD payments, verified outcomes
+# RelayGuard / pitch deck
 
-Deck source for the current Wave 2 candidate. The reproducible PDF generator is `scripts/generate-submission.py`. Product imagery must come from `npm run verify:ui`, not the historical illustrative SVGs.
+The editable layout and copy are in `scripts/design-hackathon-materials.py`. The deck uses vector Manrope typography, actual product captures and linked product/repository destinations.
 
-## 1. MUSD payments. Verified outcomes.
+1. **Sell in MUSD. Know what was paid.** Merchant checkout and paid APIs with verifiable settlement.
+2. **A token transfer does not identify an order.** Request, reconcile and fulfil.
+3. **Create a link. Let the customer pay.** Exact price, expiry, mobile checkout and direct merchant settlement.
+4. **The same payment discipline, per request.** Register a paid route, challenge with HTTP 402, settle signed authorization, release the response.
+5. **MUSD is the payment asset. Mezo informs risk.** Canonical MUSD, trove and price reads, protocol-aware treasury policy.
+6. **Historical Testnet payments. Public verification.** Actual deployed receipt cards retain their observed verification status.
+7. **A clear boundary between permission and risk.** 150% app review buffer, 110% protocol minimum and unavailable-read pauses.
+8. **Verification belongs on the server.** Exact settlement checks, authenticated operations, replay/expiry handling and automated tests.
+9. **Start with sellers who already want MUSD.** Three design partners, measurable activation and repeat usage, $19/month pricing hypothesis.
+10. **From a payment request to a verifiable result.** Live product and public implementation links.
 
-RelayGuard connects Mezo MUSD payments to merchant orders and paid API access. Access & Distribution. Mezo Buildathon Wave 2.
-
-## 2. The missing step after a token transfer
-
-The seller needs an order record, not just an increased wallet balance. An API developer needs settlement before releasing a response. RelayGuard connects an exact intent to a verified result.
-
-## 3. One merchant. Two payment paths.
-
-A customer opens a link or QR and signs a direct MUSD transfer. An agent receives HTTP 402 terms and signs an x402 authorization. Both settle directly to the merchant. The merchant keeps their storefront, API response and wallet.
-
-## 4. Mezo supplies more than a token label
-
-Canonical Testnet MUSD is the settlement asset. Mezo x402 provides the exact-payment path. TroveManager and PriceFeed supply pinned evidence for the operator's treasury policy. Buyer borrowing, if used, is separately reviewed and signed.
-
-## 5. Protocol health changes the spending decision
-
-At least 150% ICR: configured spending limits. 110% to below 150%: human approval for every positive MUSD payment. Below 110%: blocked. Unavailable reads: paused. The public lab calls the actual policy functions with explicitly controlled scenarios. Buyer checkout is separate from this operator policy.
-
-## 6. Two historical payments. Independently checkable.
-
-1.00 MUSD invoice and 0.001 MUSD x402 settlement to one merchant. Fresh verification matches the token event's payer, receiver and amount, including the facilitator's relayed transfer. Historical receipt links and raw JSON remain visible. Missing RPC evidence never becomes a verified badge.
-
-## 7. Stronger boundaries and recovery
-
-Explicit operator roles. Payer wallet ownership proof. Signed sessions for checkout mutations. Retry after wallet rejection. Repairable submission transitions. Exact decimal validation. HTTP tests exercise the actual app and stores with external services mocked.
-
-## 8. A focused first market
-
-API sellers and digital merchants already using MUSD. Hosted invoice first, Express middleware when needed. Three design partners are the next validation gate. Test a $19/month operations tier after activation. Pricing, adoption and revenue are hypotheses, not achieved traction.
-
-## 9. The next milestone is repeat usage
-
-Validate first-payment setup time, payment completion and repeat weekly use. The source is deployed; before public submission, apply its access-control migration, configure the production operator/checkout variables, verify a real-wallet checkout and x402 challenge, and publish the narrated demo. Mainnet requires separate operational and security work.
-
-## Evidence sources
-
-- [Official Buildathon announcement and dates](https://mezo.org/blog/mezo-buildathon-is-underway)
-- [Mezo x402 quickstart](https://testnet.mezo.org/docs/developers/getting-started/musd-payments-x402/x402-quickstart/)
-- [Canonical contracts](https://testnet.mezo.org/docs/users/resources/contracts-reference)
-- [MUSD integration guide](https://testnet.mezo.org/docs/developers/musd/)
-- [Invoice receipt](https://explorer.test.mezo.org/tx/0x875fcecd46badf138205c83d048e7163b9fed5d7c810ef46c5e14ba52d655868)
-- [x402 receipt](https://explorer.test.mezo.org/tx/0x1c37b9b069990a6b04ee7a2540dc5f62f2cca69636185ef75a0ee05379923f3c)
+Output: `public/submission/relayguard-wave2.pdf`.

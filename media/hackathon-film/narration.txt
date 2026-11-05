@@ -1,0 +1,15 @@
+A customer can send a token. A merchant still needs to know which order was paid. RelayGuard connects those two things, using MUSD on Mezo.
+
+Here's the merchant workspace. Connect an account, verify a receiving wallet, and create an invoice with an exact price and expiry. Funds go directly to the merchant.
+
+The customer opens the payment link on their phone. They see the amount, destination, and network before connecting a wallet. An ownership signature starts checkout. A separate wallet confirmation sends the payment.
+
+A transaction hash isn't enough. RelayGuard checks the receipt and the matching MUSD transfer: the payer, recipient, and exact amount. Only then can the invoice become paid. Historical Testnet payments can be inspected in the public evidence panel.
+
+For developers, there's a second path. Register an API route and its price, then use the Express adapter. An unpaid request receives an HTTP 402 challenge. The facilitator settles the signed MUSD authorization before the API releases its response.
+
+Mezo also informs treasury decisions. These controlled scenarios run the real policy functions. At 125 percent collateral, human approval is required. Below 110 percent, spending is blocked. If protocol reads fail, MUSD authorization pauses.
+
+The public reviewer lets anyone inspect those boundaries and receipt evidence without a wallet. That makes the integration easier to verify.
+
+Our first users are MUSD API sellers and digital merchants. The next milestone is three design partners, measuring time to first payment, completion, and repeat use. RelayGuard gives sellers a practical way to accept MUSD, with payment evidence they can inspect.

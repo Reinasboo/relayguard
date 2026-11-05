@@ -1,0 +1,24 @@
+{
+  "screens": 7,
+  "dimensions": [
+    2400,
+    1600
+  ],
+  "deckPages": 10,
+  "pdfLinks": 13,
+  "clippedTextBlocks": 0,
+  "video": {
+    "seconds": 120.0,
+    "width": 1920,
+    "height": 1080,
+    "fps": "30/1",
+    "codecs": [
+      "h264",
+      "aac"
+    ],
+    "decode": "passed"
+  },
+  "captions": 28,
+  "encodedReviewFrames": 27,
+  "archive": "passed"
+}

@@ -1,0 +1,32 @@
+{
+  "status": "ready",
+  "network": "Mezo Testnet",
+  "chainId": 31611,
+  "blockNumber": "16586182",
+  "wallet": "0x2D6d690df41807910826e799A34D7fB418480828",
+  "nativeAsset": "BTC",
+  "nativeBalanceAtomic": "4997999582081278",
+  "nativeBalance": "0.004997999582081278",
+  "musd": {
+    "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+    "balanceAtomic": "1798999000000000000000",
+    "decimals": 18
+  },
+  "trove": {
+    "status": "active",
+    "risk": "healthy",
+    "protocol": "mezo-musd-trove",
+    "borrower": "0x2D6d690df41807910826e799A34D7fB418480828",
+    "chainId": 31611,
+    "blockNumber": "16586182",
+    "observedAt": 1793870758000,
+    "priceAtomic": "80261069510000000000000",
+    "collateralAtomic": "45000000000000000",
+    "debtAtomic": "2002363301680403101034",
+    "icrAtomic": "1803742669933565614"
+  },
+  "trovePolicy": {
+    "minimumIcrAtomic": "1100000000000000000",
+    "reviewIcrAtomic": "1500000000000000000"
+  }
+}

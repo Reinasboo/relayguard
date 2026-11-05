@@ -15,12 +15,13 @@ For an operator spending MUSD liquidity, RelayGuard also reads Mezo's TroveManag
 **Access & Distribution.** Mezo supplies the payment asset, network, protocol state, and x402 integration. RelayGuard packages them into merchant workflows that do not require merchants to build payment infrastructure.
 
 - Existing public deployment: https://relayguard.vercel.app
-- Reviewer walkthrough: https://relayguard.vercel.app/review (HTTP 200 on the November 4 deployment check).
+- Public reviewer walkthrough: https://relayguard.vercel.app/review
+- The reviewer and submission PDF returned HTTP 200 in the November 4 production spot check.
 - Local review without accounts, keys, or funds: `npm ci`, then `npm run review`, then open `/review`.
 - Historical evidence: [transaction ledger](../TEST_RESULTS.md).
 - Current implementation: [technical brief](TECHNICAL.md).
 - Demo narration and recording: [demo script](DEMO.md).
-- Current deck source: [deck](DECK.md). The prior Wave 2 deck and illustrative screens are historical materials.
+- Current deck: [PDF](../../../../public/submission/relayguard-wave2.pdf). Current [demo, seven submission images and ZIP](ARTIFACTS.md).
 
 ## Wave 2 progression
 

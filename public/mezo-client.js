@@ -19749,6 +19749,14 @@ function calculateTroveIcr(collateralAtomic, priceAtomic, compositeDebtAtomic) {
   }
   return collateralAtomic * priceAtomic / compositeDebtAtomic;
 }
+function getTroveFundingError(nativeBalance, collateralAtomic, estimatedGasCostAtomic = 0n) {
+  const requiredBalance = collateralAtomic + estimatedGasCostAtomic;
+  if (nativeBalance >= requiredBalance) return void 0;
+  const formatBtc = (amount) => formatUnits(amount, 18).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
+  const requirement = estimatedGasCostAtomic > 0n ? "the selected collateral plus estimated gas" : "the selected collateral before gas";
+  const shortfall = requiredBalance - nativeBalance;
+  return `This wallet has ${formatBtc(nativeBalance)} BTC, but ${requirement} requires ${formatBtc(requiredBalance)} BTC. Add at least ${formatBtc(shortfall)} more Mezo Testnet BTC and retry. No transaction was submitted.`;
+}
 async function assertMezoTestnet(publicClient) {
   const chainId = await publicClient.getChainId();
   if (chainId !== mezoTestnet.id) {
@@ -19937,17 +19945,16 @@ async function quoteMezoTroveOpen(provider, borrowerAddress, collateralAtomic) {
     args: [BigInt(terms.principalAtomic), zeroAddress2, zeroAddress2],
     value: collateralAtomic
   };
-  const [estimatedGas, gasPrice, nativeBalance] = await Promise.all([
+  const nativeBalance = await publicClient.getBalance({ address: borrower });
+  const collateralFundingError = getTroveFundingError(nativeBalance, collateralAtomic);
+  if (collateralFundingError) throw new Error(collateralFundingError);
+  const [estimatedGas, gasPrice] = await Promise.all([
     publicClient.estimateContractGas(request),
-    publicClient.getGasPrice(),
-    publicClient.getBalance({ address: borrower })
+    publicClient.getGasPrice()
   ]);
   const estimatedGasCost = estimatedGas * gasPrice;
-  if (nativeBalance < collateralAtomic + estimatedGasCost) {
-    throw new Error(
-      `The wallet needs ${formatUnits(collateralAtomic + estimatedGasCost, 18)} BTC for the selected collateral and estimated gas; it currently has ${formatUnits(nativeBalance, 18)} BTC.`
-    );
-  }
+  const totalFundingError = getTroveFundingError(nativeBalance, collateralAtomic, estimatedGasCost);
+  if (totalFundingError) throw new Error(totalFundingError);
   return {
     ...terms,
     collateralAtomic: collateralAtomic.toString(),
@@ -20038,6 +20045,7 @@ export {
   TROVE_OPENING_TARGET_ICR,
   calculateTroveIcr,
   getMezoTroveOpeningTerms,
+  getTroveFundingError,
   inspectMezoCheckoutWallet,
   minimumCollateralForIcr,
   openMezoTestnetTrove,

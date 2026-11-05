@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { encodeFunctionResult, parseAbi, toFunctionSelector } from "viem";
 import {
   classifyTroveRisk,
   applyMezoTrovePolicy,
@@ -9,13 +10,129 @@ import {
 } from "../dist/src/mezo/trove-health.js";
 import {
   calculateTroveIcr,
+  getTroveFundingError,
+  openMezoTestnetTrove,
   minimumCollateralForIcr,
+  quoteMezoTroveOpen,
+  MEZO_TESTNET_BORROWER_OPERATIONS,
   TROVE_OPENING_TARGET_ICR
 } from "../dist/src/mezo/checkout-client.js";
 import { evaluatePolicy } from "../dist/src/core/policy.js";
 import { AuthorizationService } from "../dist/src/index.js";
 
 const borrower = "0x840E5bBF20D725f581752f8A4021ADd730550d47";
+const interestRateManager = "0x1111111111111111111111111111111111111111";
+const governableVariables = "0x2222222222222222222222222222222222222222";
+const borrowTransactionHash = `0x${"a".repeat(64)}`;
+
+function createBorrowFlowProvider({ nativeBalance = 100n * 10n ** 15n } = {}) {
+  const borrowerOperationsAbi = parseAbi([
+    "function minNetDebt() view returns (uint256)",
+    "function getBorrowingFee(uint256 _debt) view returns (uint256)",
+    "function interestRateManager() view returns (address)",
+    "function governableVariables() view returns (address)"
+  ]);
+  const priceFeedAbi = parseAbi(["function fetchPrice() view returns (uint256)"]);
+  const troveManagerAbi = parseAbi(["function getTroveStatus(address borrower) view returns (uint8)"]);
+  const governableVariablesAbi = parseAbi(["function isAccountFeeExempt(address account) view returns (bool)"]);
+  const interestRateManagerAbi = parseAbi(["function interestRate() view returns (uint16)"]);
+  const musdAbi = parseAbi(["function balanceOf(address account) view returns (uint256)"]);
+  const functions = new Map([
+    [toFunctionSelector("fetchPrice()"), [priceFeedAbi, "fetchPrice", 80_000n * 10n ** 18n]],
+    [toFunctionSelector("minNetDebt()"), [borrowerOperationsAbi, "minNetDebt", 1_800n * 10n ** 18n]],
+    [toFunctionSelector("getBorrowingFee(uint256)"), [borrowerOperationsAbi, "getBorrowingFee", 18n * 10n ** 18n]],
+    [toFunctionSelector("interestRateManager()"), [borrowerOperationsAbi, "interestRateManager", interestRateManager]],
+    [toFunctionSelector("governableVariables()"), [borrowerOperationsAbi, "governableVariables", governableVariables]],
+    [toFunctionSelector("getTroveStatus(address)"), [troveManagerAbi, "getTroveStatus", 0]],
+    [toFunctionSelector("isAccountFeeExempt(address)"), [governableVariablesAbi, "isAccountFeeExempt", false]],
+    [toFunctionSelector("interestRate()"), [interestRateManagerAbi, "interestRate", 100]]
+  ]);
+  const requests = [];
+  let balanceReads = 0;
+  const balanceOfSelector = toFunctionSelector("balanceOf(address)");
+  const blockHash = `0x${"b".repeat(64)}`;
+  const zeroHash = `0x${"0".repeat(64)}`;
+  const provider = {
+    requests,
+    async request({ method, params = [] }) {
+      requests.push({ method, params });
+      switch (method) {
+        case "eth_chainId": return "0x7b7b";
+        case "eth_accounts": return [borrower];
+        case "eth_blockNumber": return "0x100";
+        case "eth_getCode": return "0x6000";
+        case "eth_getBlockByNumber":
+          return {
+            number: "0x100",
+            hash: blockHash,
+            parentHash: zeroHash,
+            nonce: "0x0000000000000000",
+            sha3Uncles: zeroHash,
+            logsBloom: `0x${"0".repeat(512)}`,
+            transactions: [],
+            stateRoot: blockHash,
+            receiptsRoot: blockHash,
+            miner: interestRateManager,
+            difficulty: "0x0",
+            totalDifficulty: "0x0",
+            extraData: "0x",
+            size: "0x100",
+            gasLimit: "0x1c9c380",
+            gasUsed: "0x0",
+            timestamp: "0x64",
+            uncles: [],
+            baseFeePerGas: "0x3b9aca00"
+          };
+        case "eth_call": {
+          const selector = params[0].data.slice(0, 10);
+          if (selector === balanceOfSelector) {
+            balanceReads += 1;
+            return encodeFunctionResult({
+              abi: musdAbi,
+              functionName: "balanceOf",
+              result: balanceReads === 1 ? 0n : 1_800n * 10n ** 18n
+            });
+          }
+          const response = functions.get(selector);
+          if (!response) throw new Error(`Unexpected contract call selector: ${selector}`);
+          const [abi, functionName, result] = response;
+          return encodeFunctionResult({ abi, functionName, result });
+        }
+        case "eth_getBalance": return `0x${nativeBalance.toString(16)}`;
+        case "eth_estimateGas": return "0x493e0";
+        case "eth_gasPrice": return "0x3b9aca00";
+        case "eth_sendTransaction": {
+          const [transaction] = params;
+          assert.equal(transaction.from.toLowerCase(), borrower.toLowerCase());
+          assert.equal(transaction.to.toLowerCase(), MEZO_TESTNET_BORROWER_OPERATIONS.toLowerCase());
+          assert.equal(BigInt(transaction.value), 51n * 10n ** 15n);
+          assert.equal(transaction.data.slice(0, 10), toFunctionSelector("openTrove(uint256,address,address)"));
+          assert.equal(BigInt(`0x${transaction.data.slice(10, 74)}`), 1_800n * 10n ** 18n);
+          return borrowTransactionHash;
+        }
+        case "eth_getTransactionReceipt":
+          return {
+            transactionHash: borrowTransactionHash,
+            transactionIndex: "0x0",
+            blockHash,
+            blockNumber: "0x101",
+            from: borrower,
+            to: MEZO_TESTNET_BORROWER_OPERATIONS,
+            cumulativeGasUsed: "0x493e0",
+            gasUsed: "0x493e0",
+            contractAddress: null,
+            logs: [],
+            logsBloom: `0x${"0".repeat(512)}`,
+            status: "0x1",
+            effectiveGasPrice: "0x3b9aca00",
+            type: "0x2"
+          };
+        default: throw new Error(`Unexpected wallet RPC method: ${method}`);
+      }
+    }
+  };
+  return provider;
+}
 
 test("trove risk uses Mezo's minimum ratio and RelayGuard's review buffer", () => {
   assert.equal(classifyTroveRisk(0), "inactive");
@@ -46,6 +163,56 @@ test("testnet borrow preflight computes collateral from composite debt and Price
   assert.ok(calculateTroveIcr(minimum - 1n, price, debt) < TROVE_OPENING_TARGET_ICR);
   assert.throws(() => minimumCollateralForIcr(debt, 0n), /invalid Mezo terms/);
   assert.throws(() => calculateTroveIcr(0n, price, debt), /invalid Mezo terms/);
+});
+
+test("borrow funding check reports collateral shortfall before gas estimation", () => {
+  const balance = 50_000_000_000_000_000n;
+  const collateral = 50_258_120_000_000_000n;
+  assert.match(
+    getTroveFundingError(balance, collateral),
+    /wallet has 0\.05 BTC, but the selected collateral before gas requires 0\.05025812 BTC.*add at least 0\.00025812 more Mezo Testnet BTC/i
+  );
+  assert.equal(getTroveFundingError(collateral, collateral), undefined);
+  assert.match(
+    getTroveFundingError(collateral, collateral, 1_000_000_000_000n),
+    /selected collateral plus estimated gas requires 0\.05025912 BTC.*add at least 0\.000001 more/i
+  );
+});
+
+test("borrow quote rejects insufficient collateral before requesting gas estimation", async () => {
+  const provider = createBorrowFlowProvider({ nativeBalance: 50n * 10n ** 15n });
+  await assert.rejects(
+    quoteMezoTroveOpen(provider, borrower, 51n * 10n ** 15n),
+    /wallet has 0\.05 BTC, but the selected collateral before gas requires 0\.051 BTC/i
+  );
+  assert.equal(provider.requests.filter(({ method }) => method === "eth_estimateGas").length, 0);
+});
+
+test("RelayGuard borrow flow quotes, submits, confirms, and refreshes MUSD without paying the invoice", async () => {
+  const provider = createBorrowFlowProvider();
+  const progress = [];
+  const quote = await quoteMezoTroveOpen(provider, borrower, 51n * 10n ** 15n);
+  assert.equal(quote.principalAtomic, (1_800n * 10n ** 18n).toString());
+  assert.equal(quote.borrowingFeeAtomic, (18n * 10n ** 18n).toString());
+  assert.equal(quote.gasCompensationAtomic, (200n * 10n ** 18n).toString());
+  assert.ok(BigInt(quote.estimatedGas) > 0n);
+  assert.ok(BigInt(quote.estimatedGasCostAtomic) > 0n);
+
+  const result = await openMezoTestnetTrove(
+    provider,
+    borrower,
+    quote,
+    (1_000n * 10n ** 18n).toString(),
+    (message) => progress.push(message)
+  );
+
+  assert.equal(result.hash, borrowTransactionHash);
+  assert.equal(result.musdBalanceAtomic, (1_800n * 10n ** 18n).toString());
+  assert.equal(provider.requests.filter(({ method }) => method === "eth_sendTransaction").length, 1);
+  assert.equal(provider.requests.filter(({ method }) => method === "eth_getTransactionReceipt").length, 1);
+  assert.ok(progress.some((message) => message.includes("No invoice payment will be submitted")));
+  assert.ok(provider.requests.every(({ method }) => method !== "personal_sign"));
+  assert.ok(provider.requests.every(({ method }) => method !== "eth_sendRawTransaction"));
 });
 
 test("active trove reads use the live Mezo price for protocol ICR", async () => {

@@ -1,6 +1,7 @@
 import { payForRelayguardResource } from "./x402-client.js";
 import { discoverWalletProviders, selectSingleWallet } from "./wallet-provider.js";
 import {
+  getTroveFundingError,
   getMezoTroveOpeningTerms,
   inspectMezoCheckoutWallet,
   MEZO_TESTNET_MUSD,
@@ -1854,6 +1855,14 @@ async function prepareBorrowOption(provider, account, preflight) {
       setBorrowStatus(
         `This deployment’s minimum borrow of ${formatAtomic(terms.principalAtomic)} MUSD would not cover the ${formatAtomic(shortfall)} MUSD shortfall. No trove-opening option is offered; use another MUSD source or ask the merchant about the invoice amount.`
       );
+      return;
+    }
+    const fundingError = getTroveFundingError(
+      BigInt(preflight.nativeBalanceAtomic),
+      BigInt(terms.minimumCollateralAtomic)
+    );
+    if (fundingError) {
+      setBorrowStatus(fundingError, "error");
       return;
     }
     byId("checkout-borrow-form").classList.remove("hidden");

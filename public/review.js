@@ -86,7 +86,9 @@ byId("inspect-x402").addEventListener("click", async () => {
     const response = await fetch("/api/paid-resource", { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
     const header = response.headers.get("payment-required");
     if (response.status !== 402 || !header) throw new Error(`Endpoint returned HTTP ${response.status}. No 402 challenge was verified. The deployment must enable X402_ENABLED and its facilitator.`);
-    output.textContent = `HTTP 402 PAYMENT REQUIRED\n${JSON.stringify(JSON.parse(atob(header)), null, 2)}`;
+    const challengeBytes = Uint8Array.from(atob(header), (character) => character.charCodeAt(0));
+    const challenge = JSON.parse(new TextDecoder().decode(challengeBytes));
+    output.textContent = `HTTP 402 PAYMENT REQUIRED\n${JSON.stringify(challenge, null, 2)}`;
   } catch (error) { output.textContent = error.message; } finally { button.disabled = false; }
 });
 showPayments(); void loadEvidence(); void runPolicy();

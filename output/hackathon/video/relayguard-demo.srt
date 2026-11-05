@@ -1,0 +1,111 @@
+1
+00:00:00,650 --> 00:00:02,506
+A customer can send a token.
+
+2
+00:00:02,726 --> 00:00:05,435
+A merchant still needs to know which order was paid.
+
+3
+00:00:05,655 --> 00:00:09,709
+RelayGuard connects those two things, using MUSD on Mezo.
+
+4
+00:00:10,279 --> 00:00:11,879
+Here's the merchant workspace.
+
+5
+00:00:12,099 --> 00:00:18,371
+Connect an account, verify a receiving wallet, and create an invoice with an exact price and expiry.
+
+6
+00:00:18,591 --> 00:00:20,596
+Funds go directly to the merchant.
+
+7
+00:00:21,166 --> 00:00:23,939
+The customer opens the payment link on their phone.
+
+8
+00:00:24,159 --> 00:00:28,362
+They see the amount, destination, and network before connecting a wallet.
+
+9
+00:00:28,582 --> 00:00:30,737
+An ownership signature starts checkout.
+
+10
+00:00:30,957 --> 00:00:33,773
+A separate wallet confirmation sends the payment.
+
+11
+00:00:34,343 --> 00:00:36,327
+A transaction hash isn't enough.
+
+12
+00:00:36,547 --> 00:00:43,224
+RelayGuard checks the receipt and the matching MUSD transfer: the payer, recipient, and exact amount.
+
+13
+00:00:43,444 --> 00:00:45,791
+Only then can the invoice become paid.
+
+14
+00:00:46,011 --> 00:00:50,384
+Historical Testnet payments can be inspected in the public evidence panel.
+
+15
+00:00:50,954 --> 00:00:53,045
+For developers, there's a second path.
+
+16
+00:00:53,265 --> 00:00:57,425
+Register an API route and its price, then use the Express adapter.
+
+17
+00:00:57,645 --> 00:01:01,783
+An unpaid request receives an HTTP 402 challenge.
+
+18
+00:01:02,003 --> 00:01:08,809
+The facilitator settles the signed MUSD authorization before the API releases its response.
+
+19
+00:01:09,379 --> 00:01:11,896
+Mezo also informs treasury decisions.
+
+20
+00:01:12,116 --> 00:01:15,636
+These controlled scenarios run the real policy functions.
+
+21
+00:01:15,856 --> 00:01:20,016
+At 125 percent collateral, human approval is required.
+
+22
+00:01:20,236 --> 00:01:23,116
+Below 110 percent, spending is blocked.
+
+23
+00:01:23,336 --> 00:01:27,261
+If protocol reads fail, MUSD authorization pauses.
+
+24
+00:01:27,831 --> 00:01:33,293
+The public reviewer lets anyone inspect those boundaries and receipt evidence without a wallet.
+
+25
+00:01:33,513 --> 00:01:36,137
+That makes the integration easier to verify.
+
+26
+00:01:36,707 --> 00:01:41,123
+Our first users are MUSD API sellers and digital merchants.
+
+27
+00:01:41,343 --> 00:01:47,892
+The next milestone is three design partners, measuring time to first payment, completion, and repeat use.
+
+28
+00:01:48,112 --> 00:01:54,640
+RelayGuard gives sellers a practical way to accept MUSD, with payment evidence they can inspect.

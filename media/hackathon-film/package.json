@@ -1,0 +1,16 @@
+{
+  "name": "relayguard-hackathon-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "stills": "node render.mjs stills",
+    "render": "node render.mjs video"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.541",
+    "@remotion/renderer": "4.0.541",
+    "remotion": "4.0.541",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

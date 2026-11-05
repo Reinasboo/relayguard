@@ -1,16 +1,17 @@
 import "dotenv/config";
 import { config as loadDotenv } from "dotenv";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import express, { type Request, type Response } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { paymentMiddleware } from "@x402/express";
 import {
   createPublicClient,
+  decodeFunctionData,
   formatUnits,
   getAddress,
   http,
@@ -97,6 +98,13 @@ let reviewEvidencePending: Promise<Awaited<ReturnType<typeof readReviewEvidence>
 const erc20ReadAbi = [
   {
     type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  {
+    type: "function",
     name: "decimals",
     stateMutability: "view",
     inputs: [],
@@ -133,8 +141,9 @@ if (!reviewOnly && (!signerPrivateKey || !isHex(signerPrivateKey) || signerPriva
 
 const account = signerPrivateKey ? privateKeyToAccount(signerPrivateKey as Hex) : undefined;
 const signerAddress = account?.address ?? DEMO_PAYER;
-const checkoutSecurity = new CheckoutSecurity(process.env.RELAYGUARD_CHECKOUT_SECRET ||
-  (reviewOnly ? randomBytes(32).toString("hex") : createHash("sha256").update(`relayguard-checkout:${signerPrivateKey}`).digest("hex")));
+const checkoutSigningSecret = process.env.RELAYGUARD_CHECKOUT_SECRET ||
+  (reviewOnly ? randomBytes(32).toString("hex") : createHash("sha256").update(`relayguard-checkout:${signerPrivateKey}`).digest("hex"));
+const checkoutSecurity = new CheckoutSecurity(checkoutSigningSecret);
 if (!reviewOnly && configuredSigner && getAddress(configuredSigner) !== signerAddress) {
   throw new Error("MEZO_SIGNER_ADDRESS does not match the address derived from MEZO_PRIVATE_KEY.");
 }
@@ -182,6 +191,31 @@ function response(
   res.end(JSON.stringify(body));
 }
 
+class RequestError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
+function requestFailed(res: ServerResponse, error: unknown): void {
+  const message = error instanceof Error ? error.message : "Unexpected server error.";
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  let status = 500;
+  let publicMessage = "RelayGuard could not complete this request. Please retry.";
+  if (error instanceof RequestError) { status = error.status; publicMessage = message; }
+  else if (error instanceof SyntaxError) { status = 400; publicMessage = "Request body must contain valid JSON."; }
+  else if (code === "22P02") { status = 400; publicMessage = "Invalid resource identifier."; }
+  else if (code === "23505" || /UNIQUE constraint failed/i.test(message)) {
+    status = 409; publicMessage = "This transaction or resource has already been used.";
+  } else if (/^Checkout invoice was not found\.$/.test(message) || /^Authorization '[a-zA-Z0-9-]+' was not found\.$/.test(message)) {
+    status = 404; publicMessage = "The requested payment or invoice was not found.";
+  } else if (/^(Checkout invoice (cannot|does not|was reserved|was already)|Only the matching unsubmitted authorization)/.test(message)) {
+    status = 409; publicMessage = "This payment state changed. Refresh before continuing.";
+  }
+  // Diagnostic details stay in server logs; RPC URLs and SQL details are never public errors.
+  console.error("RelayGuard request failed:", message);
+  if (!res.headersSent) response(res, status, { error: publicMessage });
+  else res.destroy();
+}
+
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -189,13 +223,13 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > 16_384) {
-      throw new Error("Request body exceeds the 16 KB limit.");
+      throw new RequestError(413, "Request body exceeds the 16 KB limit.");
     }
     chunks.push(buffer);
   }
   const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Request body must be a JSON object.");
+    throw new RequestError(400, "Request body must be a JSON object.");
   }
   return parsed as Record<string, unknown>;
 }
@@ -262,9 +296,11 @@ async function assetDetails(asset: string): Promise<{ decimals: number; tokenAdd
 function parseExactAmount(value: string, decimals: number): bigint {
   const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/.exec(value.trim());
   if (!match || (match[2]?.length ?? 0) > decimals) {
-    throw new Error(`Invalid amount: use a decimal with at most ${decimals} fractional digits.`);
+    throw new RequestError(400, `Invalid amount: use a decimal with at most ${decimals} fractional digits.`);
   }
-  return parseUnits(value.trim(), decimals);
+  const amount = parseUnits(value.trim(), decimals);
+  if (amount > 2n ** 256n - 1n) throw new RequestError(400, "Amount exceeds the supported token transfer range.");
+  return amount;
 }
 
 function localOriginAllowed(req: IncomingMessage): boolean {
@@ -294,9 +330,10 @@ function localOriginAllowed(req: IncomingMessage): boolean {
 }
 
 function requestOrigin(req: IncomingMessage): string {
+  if (process.env.PUBLIC_ORIGIN) return new URL(process.env.PUBLIC_ORIGIN).origin;
   const forwardedProtocol = req.headers["x-forwarded-proto"];
   const protocol =
-    typeof forwardedProtocol === "string" && /^https?$/.test(forwardedProtocol)
+    process.env.VERCEL && typeof forwardedProtocol === "string" && /^https?$/.test(forwardedProtocol)
       ? forwardedProtocol
       : process.env.VERCEL
         ? "https"
@@ -883,7 +920,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   if (req.method === "POST" && invoiceChallengeMatch) {
     const invoice = await checkout.get(decodeURIComponent(invoiceChallengeMatch[1] ?? ""));
     const body = await readJson(req);
-    if (!["open", "authorized"].includes(invoice.status)) {
+    if (Date.now() >= invoice.expiresAt || !["open", "authorized"].includes(invoice.status)) {
       response(res, 409, { error: `Invoice is ${invoice.status}; no new wallet signature is needed.` });
       return;
     }
@@ -897,6 +934,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   if (req.method === "POST" && invoiceAuthorizeMatch) {
     const invoice = await checkout.get(decodeURIComponent(invoiceAuthorizeMatch[1] ?? ""));
     const body = await readJson(req);
+    if (Date.now() >= invoice.expiresAt) {
+      response(res, 409, { error: "This invoice has expired. Ask the merchant for a new payment link." });
+      return;
+    }
     if (typeof body.payerAddress !== "string" || !isAddress(body.payerAddress)) {
       response(res, 400, { error: "A valid Mezo testnet payer address is required." });
       return;
@@ -962,11 +1003,18 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       purpose: `Merchant checkout: ${invoice.description}`,
       idempotencyKey: `checkout:${invoice.id}:${attemptId}`
     };
-    const { approvalThresholdAtomic: _approvalThreshold, ...checkoutPolicy } = policyFor("MUSD", details.decimals);
     const policy: SpendingPolicy = {
-      ...checkoutPolicy,
+      id: `merchant-invoice:${invoice.id}`,
+      version: 1,
       agentId: payerId,
-      allowedRecipients: [invoice.merchantAddress]
+      network: "mezo",
+      asset: "MUSD",
+      // A customer signs their own exact invoice; treasury caps govern only the operator signer.
+      maxTransactionAtomic: invoice.amountAtomic,
+      dailyLimitAtomic: (2n ** 256n - 1n).toString(),
+      allowedRecipients: [invoice.merchantAddress],
+      approverIds: [],
+      expiresAt: invoice.expiresAt
     };
     const result = await authorization.request(intent, policy);
     if (result.record.status !== "authorized") {
@@ -1002,6 +1050,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 400, { error: "Authorization ID and a 32-byte transaction hash are required." });
       return;
     }
+    const transactionHash = body.transactionHash.toLowerCase();
     const record = await authorization.get(body.authorizationId);
     try {
       checkoutSecurity.requireSession(body.checkoutToken, invoice.id, record.id);
@@ -1009,7 +1058,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 403, { error: "A valid checkout session is required to record this payment." });
       return;
     }
-    if (invoice.status === "submitted" && invoice.authorizationId === record.id && invoice.transactionReference === body.transactionHash) {
+    if (invoice.status === "submitted" && invoice.authorizationId === record.id && invoice.transactionReference?.toLowerCase() === transactionHash) {
       await reconcileInvoiceSubmission(invoice, authorization);
       response(res, 200, { invoice, authorization: await authorization.get(record.id), replayed: true });
       return;
@@ -1018,7 +1067,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       invoice.status !== "authorized" ||
       invoice.authorizationId !== record.id ||
       !["authorized", "executing", "submitted"].includes(record.status) ||
-      (record.transactionReference !== undefined && record.transactionReference !== body.transactionHash) ||
+      (record.transactionReference !== undefined && record.transactionReference.toLowerCase() !== transactionHash) ||
       record.intent.asset !== "MUSD" ||
       record.intent.recipient.toLowerCase() !== invoice.merchantAddress.toLowerCase() ||
       record.intent.amountAtomic !== invoice.amountAtomic
@@ -1026,8 +1075,31 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
       response(res, 409, { error: "Invoice and policy authorization do not match." });
       return;
     }
-    // Persist the broadcast hash first. Retrying submit or verify repairs a partially completed transition.
-    const updatedInvoice = await checkout.submit(invoice.id, record.id, body.transactionHash);
+    // Prove ownership before claiming a globally unique hash. Otherwise another payer could
+    // reserve a victim's public transaction hash and prevent the rightful checkout recording it.
+    let transaction;
+    try {
+      transaction = await publicClient.getTransaction({ hash: transactionHash as Hex });
+    } catch {
+      res.setHeader("Retry-After", "2");
+      response(res, 503, { error: "The payment is not visible on the network yet. Keep this transaction hash and retry recording it." });
+      return;
+    }
+    let matches = false;
+    try {
+      const transfer = decodeFunctionData({ abi: erc20ReadAbi, data: transaction.input });
+      matches = transaction.from.toLowerCase() === record.intent.agentId.replace(/^checkout:/, "") &&
+        transaction.to?.toLowerCase() === MUSD_TESTNET.toLowerCase() && transaction.value === 0n &&
+        transfer.functionName === "transfer" &&
+        transfer.args[0].toLowerCase() === invoice.merchantAddress.toLowerCase() &&
+        transfer.args[1] === BigInt(invoice.amountAtomic);
+    } catch { /* Malformed or unrelated calldata cannot claim an invoice payment. */ }
+    if (!matches) {
+      response(res, 409, { error: "This transaction does not match the verified payer, MUSD token, recipient and invoice amount." });
+      return;
+    }
+    // Persist the validated broadcast hash first. Retrying repairs a partial transition.
+    const updatedInvoice = await checkout.submit(invoice.id, record.id, transactionHash);
     await reconcileInvoiceSubmission(updatedInvoice, authorization);
     response(res, 200, { invoice: updatedInvoice, authorization: await authorization.get(record.id) });
     return;
@@ -1102,6 +1174,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     }
     if (
       evidence.value.state === "confirmed" &&
+      evidence.value.settledAt !== undefined &&
+      evidence.value.settledAt + 999 >= record.createdAt &&
       evidence.value.asset === record.intent.asset &&
       evidence.value.sender?.toLowerCase() === record.intent.agentId.replace(/^checkout:/, "") &&
       evidence.value.recipient?.toLowerCase() === record.intent.recipient.toLowerCase() &&
@@ -1448,16 +1522,65 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
 const publicDirectory = resolve(process.cwd(), "public");
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", 1);
+app.set("trust proxy", process.env.VERCEL ? 1 : false);
 
-app.use((req, _res, next) => {
-  const route = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`)
-    .searchParams.get("__relayguard_path");
-  if (route && /^\/(?:api|pay)\//.test(route)) {
-    req.url = route;
-    req.originalUrl = route;
-  }
-  next();
+app.use((req, res, next) => {
+  try {
+    const requestHost = new URL(`http://${req.headers.host ?? ""}`);
+    const hostName = requestHost.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const allowedHosts = [process.env.PUBLIC_HOSTNAME, process.env.VERCEL_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+      process.env.PUBLIC_ORIGIN ? new URL(process.env.PUBLIC_ORIGIN).hostname : undefined]
+      .filter((value): value is string => Boolean(value)).map(value => value.toLowerCase());
+    if (requestHost.username || requestHost.password ||
+        (!["localhost", "127.0.0.1", "::1"].includes(hostName) && !allowedHosts.includes(hostName))) {
+      response(res, 403, { error: "This host is not configured for RelayGuard." });
+      return;
+    }
+    // Resolve the Vercel alias once, before x402. A second interpretation after
+    // payment middleware could otherwise turn a free config request into paid content.
+    const url = new URL(req.url ?? "/", "http://relayguard.internal");
+    if (url.origin !== "http://relayguard.internal" || url.hash) throw new RequestError(400, "Invalid request path.");
+    const routes = url.searchParams.getAll("__relayguard_path");
+    if (routes.length) {
+      const route = routes[0] ?? "";
+      if (routes.length !== 1 || !/^\/(?:api|pay)\/[^?#\\\s]*$/.test(route) ||
+          new URL(route, url.origin).pathname !== route) throw new RequestError(400, "Invalid routed request path.");
+      url.pathname = route;
+      url.searchParams.delete("__relayguard_path");
+    }
+    if (process.env.VERCEL && url.pathname.startsWith("/api/pay/")) url.pathname = url.pathname.slice(4);
+    req.url = url.pathname + url.search;
+    req.originalUrl = req.url;
+    if (url.pathname.startsWith("/api/") && !localOriginAllowed(req)) {
+      response(res, 403, { error: "Cross-origin requests are not allowed." });
+      return;
+    }
+    res.setHeader("referrer-policy", "no-referrer");
+    res.setHeader("x-frame-options", "DENY");
+    next();
+  } catch (error) { requestFailed(res, error); }
+});
+
+// Counters are atomic and durable in the shared store, not process-local memory.
+// Apply before x402/signing so rejected traffic cannot settle a charge first.
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  const path = new URL(req.url, "http://relayguard.internal").pathname;
+  const walletRequest = req.method === "POST" &&
+    (/^\/api\/invoices\/[^/]+\/(?:challenge|authorize|submit|release|verify)$/.test(path) ||
+      path.startsWith("/api/merchant/wallet/") || path.startsWith("/api/payments"));
+  const rpcRequest = req.method === "GET" && (path.startsWith("/api/health") || path === "/api/mezo/evidence");
+  if (!walletRequest && !rpcRequest) { next(); return; }
+  try {
+    await storageReady;
+    const identity = createHmac("sha256", checkoutSigningSecret).update(`request-limit:${req.ip ?? req.socket.remoteAddress ?? "unknown"}`).digest("hex");
+    const result = await checkout.consumeRequestLimit(`${walletRequest ? "wallet" : "rpc"}:${identity}`, walletRequest ? 120 : 60, 60_000);
+    if (!result.allowed) {
+      response(res, 429, { error: "Too many requests. Wait briefly before retrying." }, { "retry-after": String(result.retryAfterSeconds) });
+      return;
+    }
+    next();
+  } catch (error) { requestFailed(res, error); }
 });
 
 if (x402Enabled) {
@@ -1492,34 +1615,7 @@ app.use(async (req: Request, res: Response) => {
   try {
     await storageReady;
     const hostHeader = req.headers.host ?? "";
-    const hostName = hostHeader.replace(/:\d+$/, "").toLowerCase();
-    const allowedPublicHosts = [
-      process.env.PUBLIC_HOSTNAME,
-      process.env.VERCEL_URL,
-      process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ]
-      .filter((value): value is string => Boolean(value))
-      .map((value) => value.toLowerCase());
-    if (
-      !["localhost", "127.0.0.1", "::1"].includes(hostName) &&
-      !allowedPublicHosts.includes(hostName) &&
-      !(process.env.VERCEL && hostName.endsWith(".vercel.app"))
-    ) {
-      response(res, 403, { error: "This host is not configured for RelayGuard." });
-      return;
-    }
     const url = new URL(req.url ?? "/", `http://${hostHeader || `${host}:${port}`}`);
-    const relayguardPath = process.env.VERCEL
-      ? url.searchParams.get("__relayguard_path")
-      : null;
-    if (relayguardPath) {
-      if (!/^\/(?:api|pay)\//.test(relayguardPath)) {
-        response(res, 400, { error: "Invalid routed request path." });
-        return;
-      }
-      url.pathname = relayguardPath;
-      url.searchParams.delete("__relayguard_path");
-    }
     const paymentPath =
       process.env.VERCEL && url.pathname.startsWith("/api/pay/")
         ? url.pathname.slice("/api".length)
@@ -1534,7 +1630,7 @@ app.use(async (req: Request, res: Response) => {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
         "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'self'; connect-src 'self' https://*.supabase.co https://facilitator.vativ.io; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+        "content-security-policy": "default-src 'self'; connect-src 'self' https://*.supabase.co https://facilitator.vativ.io; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'"
       });
       res.end(content);
       return;
@@ -1564,24 +1660,14 @@ app.use(async (req: Request, res: Response) => {
       "content-type": file.type,
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
-      "content-security-policy": "default-src 'self'; connect-src 'self' https://*.supabase.co https://facilitator.vativ.io; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+      "content-security-policy": "default-src 'self'; connect-src 'self' https://*.supabase.co https://facilitator.vativ.io; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; form-action 'self'"
     });
     res.end(content);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected server error.";
-    const status = message.toLowerCase().includes("not found")
-      ? 404
-      : message.includes("JSON") || message.includes("required") || message.toLowerCase().includes("invalid") || message.includes("greater") || message.includes("Supported") || message.includes("Request body")
-        ? 400
-        : 500;
-    console.error("RelayGuard request failed:", message);
-    if (!res.headersSent) {
-      response(res, status, { error: message });
-    } else {
-      res.destroy();
-    }
+    requestFailed(res, error);
   }
 });
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => requestFailed(res, error));
 
 if (!process.env.VERCEL && process.env.RELAYGUARD_NO_LISTEN !== "true") {
   const server = app.listen(port, host, () => {

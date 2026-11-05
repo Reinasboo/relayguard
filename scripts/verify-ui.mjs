@@ -7,7 +7,7 @@ const port = 4175;
 const origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, ["scripts/review-server.mjs"], { env: { ...process.env, PORT: String(port) }, stdio: "ignore" });
 let browser;
-const output = resolve("output/review");
+const output = resolve(process.env.RELAYGUARD_UI_OUTPUT ?? "output/review");
 await mkdir(output, { recursive: true });
 try {
   for (let i = 0; i < 80; i++) {

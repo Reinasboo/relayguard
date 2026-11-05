@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-05",
+  "baseline": "754da5c",
+  "automatedTests": {
+    "command": "npm test",
+    "tests": 81,
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "externalServices": "Mocked auth/RPC/facilitator; real Express, x402 middleware, SQLite and pg client configuration"
+  },
+  "browser": {
+    "command": "RELAYGUARD_UI_OUTPUT=tmp/security-ui node scripts/verify-ui.mjs",
+    "passed": true,
+    "viewports": [
+      390,
+      768,
+      1440
+    ],
+    "policyScenarios": 4,
+    "amountCap": true,
+    "defaultWorkspace": "merchant",
+    "reviewMutationsDenied": true,
+    "broadcastReloadRecovery": true,
+    "pageErrors": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --json",
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 156,
+      "dev": 45,
+      "optional": 28,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 201
+    }
+  },
+  "scriptSyntax": {
+    "command": "node --check public/app.js",
+    "passed": true
+  },
+  "notPerformed": [
+    "Hosted Postgres migration and TLS handshake",
+    "Deployment",
+    "Fresh funded wallet payment"
+  ],
+  "submissionMaterialsPR": "https://github.com/Reinasboo/relayguard/pull/4"
+}

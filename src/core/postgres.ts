@@ -24,14 +24,14 @@ const ZERO_HASH = "0".repeat(64);
 
 function createPool(connectionString: string): Pool {
   const url = new URL(connectionString);
-  for (const option of ["sslmode", "sslrootcert", "sslcert", "sslkey", "sslpassword", "uselibpqcompat"]) {
+  for (const option of ["ssl", "sslmode", "sslrootcert", "sslcert", "sslkey", "sslpassword", "uselibpqcompat"]) {
     url.searchParams.delete(option);
   }
   const ca = process.env.SUPABASE_DB_CA_CERT;
   return new Pool({
     connectionString: url.toString(),
     max: 1,
-    ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false }
+    ssl: { ...(ca ? { ca } : {}), rejectUnauthorized: true }
   });
 }
 
@@ -509,6 +509,17 @@ export class PostgresCheckoutService implements CheckoutStore {
 
   async ready(): Promise<void> {
     await this.pool.query("SELECT 1 FROM public.merchant_invoices LIMIT 1");
+    await this.pool.query("SELECT 1 FROM public.relayguard_request_limits LIMIT 1");
+  }
+
+  async consumeRequestLimit(key: string, limit: number, windowMs: number, now = Date.now()) {
+    const start = Math.floor(now / windowMs) * windowMs;
+    await this.pool.query("DELETE FROM public.relayguard_request_limits WHERE window_start < $1", [start - windowMs]);
+    const result = await this.pool.query(`INSERT INTO public.relayguard_request_limits (key, window_start, request_count) VALUES ($1, $2, 1)
+      ON CONFLICT(key) DO UPDATE SET
+        request_count = CASE WHEN relayguard_request_limits.window_start = excluded.window_start THEN relayguard_request_limits.request_count + 1 ELSE 1 END,
+        window_start = excluded.window_start RETURNING request_count`, [key, start]);
+    return { allowed: Number(result.rows[0].request_count) <= limit, retryAfterSeconds: Math.max(1, Math.ceil((start + windowMs - now) / 1000)) };
   }
 
   async getMerchantProfile(merchantUserId: string): Promise<MerchantProfile | undefined> {
@@ -754,6 +765,8 @@ export class PostgresCheckoutService implements CheckoutStore {
   }
 
   async list(merchantUserId: string, limit = 50): Promise<readonly CheckoutInvoice[]> {
+    await this.pool.query("UPDATE public.merchant_invoices SET status = 'expired' WHERE merchant_user_id = $1 AND status = 'open' AND expires_at <= $2",
+      [merchantUserId, Date.now()]);
     const result = await this.pool.query(
       "SELECT * FROM public.merchant_invoices WHERE merchant_user_id = $1 ORDER BY created_at DESC LIMIT $2",
       [merchantUserId, Math.max(1, Math.min(100, limit))]
@@ -779,7 +792,7 @@ export class PostgresCheckoutService implements CheckoutStore {
       `UPDATE public.merchant_invoices
        SET status = 'submitted', transaction_reference = $3
        WHERE id = $1 AND status = 'authorized' AND authorization_id = $2 RETURNING *`,
-      [id, authorizationId, reference]
+      [id, authorizationId, reference.toLowerCase()]
     );
     if (!result.rowCount) throw new Error("Checkout invoice does not match an active authorization.");
     return decodeInvoice(result.rows[0]);

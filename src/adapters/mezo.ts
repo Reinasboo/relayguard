@@ -61,6 +61,11 @@ async function readSettlementEvidence(
       };
     }
 
+    const block = await publicClient.getBlock({ blockHash: receipt.blockHash });
+    const settledAt = Number(block.timestamp * 1000n);
+    if (block.hash?.toLowerCase() !== receipt.blockHash.toLowerCase() || !Number.isSafeInteger(settledAt) || settledAt <= 0) {
+      throw new Error("Receipt block could not be verified.");
+    }
     const tokenAddress = config.tokenAddress;
     if (tokenAddress && receipt.to?.toLowerCase() === tokenAddress.toLowerCase()) {
       let transfer: { readonly to: string; readonly value: bigint } | undefined;
@@ -101,6 +106,7 @@ async function readSettlementEvidence(
         value: {
           state: "confirmed",
           reference,
+          settledAt,
           observedAt: Date.now(),
           source: `${chain.name} MUSD Transfer event`,
           asset: "MUSD",
@@ -131,6 +137,7 @@ async function readSettlementEvidence(
         value: {
           state: "confirmed",
           reference,
+          settledAt,
           observedAt: Date.now(),
           source: `${chain.name} native transaction`,
           asset: "BTC",
@@ -166,7 +173,7 @@ async function readSettlementEvidence(
     return {
       supported: false,
       code: "execution_failed",
-      message: error instanceof Error ? error.message : "Mezo settlement verification failed."
+      message: "Mezo settlement verification is unavailable. Retry when the RPC is available."
     };
   }
 }
@@ -257,9 +264,8 @@ export class MezoAdapter extends BaseAdapter {
         }
       };
       return { supported: true, value: prepared };
-    } catch (error) {
-      return this.unconfigured(
-        error instanceof Error ? error.message : "Mezo payment preparation failed because the environment was not configured for a valid network.")
+    } catch {
+      return this.unconfigured("Mezo payment preparation failed. Check the server's network and asset configuration.");
     }
   }
 
@@ -326,9 +332,8 @@ export class MezoAdapter extends BaseAdapter {
         });
       }
       return { supported: true, value: { reference: hash } };
-    } catch (error) {
-      return this.executionFailed(
-        error instanceof Error ? error.message : "Mezo transaction execution failed.")
+    } catch {
+      return this.executionFailed("Mezo transaction execution failed. Check network availability and reconcile the wallet before retrying.");
     }
   }
 

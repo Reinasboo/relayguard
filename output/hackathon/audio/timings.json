@@ -1,0 +1,217 @@
+{
+  "voice": "Kokoro af_heart",
+  "sampleRate": 24000,
+  "duration": 115.20999999999998,
+  "chapters": [
+    {
+      "index": 0,
+      "start": 0.65,
+      "end": 10.279
+    },
+    {
+      "index": 1,
+      "start": 10.279,
+      "end": 21.166
+    },
+    {
+      "index": 2,
+      "start": 21.166,
+      "end": 34.343
+    },
+    {
+      "index": 3,
+      "start": 34.343,
+      "end": 50.954
+    },
+    {
+      "index": 4,
+      "start": 50.954,
+      "end": 69.379
+    },
+    {
+      "index": 5,
+      "start": 69.379,
+      "end": 87.831
+    },
+    {
+      "index": 6,
+      "start": 87.831,
+      "end": 96.707
+    },
+    {
+      "index": 7,
+      "start": 96.707,
+      "end": 115.21
+    }
+  ],
+  "captions": [
+    {
+      "text": "A customer can send a token.",
+      "start": 0.65,
+      "end": 2.506,
+      "chapter": 0
+    },
+    {
+      "text": "A merchant still needs to know which order was paid.",
+      "start": 2.726,
+      "end": 5.435,
+      "chapter": 0
+    },
+    {
+      "text": "RelayGuard connects those two things, using MUSD on Mezo.",
+      "start": 5.655,
+      "end": 9.709,
+      "chapter": 0
+    },
+    {
+      "text": "Here's the merchant workspace.",
+      "start": 10.279,
+      "end": 11.879,
+      "chapter": 1
+    },
+    {
+      "text": "Connect an account, verify a receiving wallet, and create an invoice with an exact price and expiry.",
+      "start": 12.099,
+      "end": 18.371,
+      "chapter": 1
+    },
+    {
+      "text": "Funds go directly to the merchant.",
+      "start": 18.591,
+      "end": 20.596,
+      "chapter": 1
+    },
+    {
+      "text": "The customer opens the payment link on their phone.",
+      "start": 21.166,
+      "end": 23.939,
+      "chapter": 2
+    },
+    {
+      "text": "They see the amount, destination, and network before connecting a wallet.",
+      "start": 24.159,
+      "end": 28.362,
+      "chapter": 2
+    },
+    {
+      "text": "An ownership signature starts checkout.",
+      "start": 28.582,
+      "end": 30.737,
+      "chapter": 2
+    },
+    {
+      "text": "A separate wallet confirmation sends the payment.",
+      "start": 30.957,
+      "end": 33.773,
+      "chapter": 2
+    },
+    {
+      "text": "A transaction hash isn't enough.",
+      "start": 34.343,
+      "end": 36.327,
+      "chapter": 3
+    },
+    {
+      "text": "RelayGuard checks the receipt and the matching MUSD transfer: the payer, recipient, and exact amount.",
+      "start": 36.547,
+      "end": 43.224,
+      "chapter": 3
+    },
+    {
+      "text": "Only then can the invoice become paid.",
+      "start": 43.444,
+      "end": 45.791,
+      "chapter": 3
+    },
+    {
+      "text": "Historical Testnet payments can be inspected in the public evidence panel.",
+      "start": 46.011,
+      "end": 50.384,
+      "chapter": 3
+    },
+    {
+      "text": "For developers, there's a second path.",
+      "start": 50.954,
+      "end": 53.045,
+      "chapter": 4
+    },
+    {
+      "text": "Register an API route and its price, then use the Express adapter.",
+      "start": 53.265,
+      "end": 57.425,
+      "chapter": 4
+    },
+    {
+      "text": "An unpaid request receives an HTTP 402 challenge.",
+      "start": 57.645,
+      "end": 61.783,
+      "chapter": 4
+    },
+    {
+      "text": "The facilitator settles the signed MUSD authorization before the API releases its response.",
+      "start": 62.003,
+      "end": 68.809,
+      "chapter": 4
+    },
+    {
+      "text": "Mezo also informs treasury decisions.",
+      "start": 69.379,
+      "end": 71.896,
+      "chapter": 5
+    },
+    {
+      "text": "These controlled scenarios run the real policy functions.",
+      "start": 72.116,
+      "end": 75.636,
+      "chapter": 5
+    },
+    {
+      "text": "At 125 percent collateral, human approval is required.",
+      "start": 75.856,
+      "end": 80.016,
+      "chapter": 5
+    },
+    {
+      "text": "Below 110 percent, spending is blocked.",
+      "start": 80.236,
+      "end": 83.116,
+      "chapter": 5
+    },
+    {
+      "text": "If protocol reads fail, MUSD authorization pauses.",
+      "start": 83.336,
+      "end": 87.261,
+      "chapter": 5
+    },
+    {
+      "text": "The public reviewer lets anyone inspect those boundaries and receipt evidence without a wallet.",
+      "start": 87.831,
+      "end": 93.293,
+      "chapter": 6
+    },
+    {
+      "text": "That makes the integration easier to verify.",
+      "start": 93.513,
+      "end": 96.137,
+      "chapter": 6
+    },
+    {
+      "text": "Our first users are MUSD API sellers and digital merchants.",
+      "start": 96.707,
+      "end": 101.123,
+      "chapter": 7
+    },
+    {
+      "text": "The next milestone is three design partners, measuring time to first payment, completion, and repeat use.",
+      "start": 101.343,
+      "end": 107.892,
+      "chapter": 7
+    },
+    {
+      "text": "RelayGuard gives sellers a practical way to accept MUSD, with payment evidence they can inspect.",
+      "start": 108.112,
+      "end": 114.64,
+      "chapter": 7
+    }
+  ]
+}

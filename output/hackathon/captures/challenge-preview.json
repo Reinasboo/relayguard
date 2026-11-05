@@ -1,0 +1,7 @@
+{
+  "source": "https://relayguard.vercel.app/api/paid-resource",
+  "reviewerScript": "public/review.js",
+  "capture": "Current reviewer UI preview with deployed HTTP 402 response",
+  "capturedAt": "2026-11-05T09:56:23.317Z",
+  "text": "HTTP 402 PAYMENT REQUIRED\n{\n  \"x402Version\": 2,\n  \"error\": \"Payment required\",\n  \"resource\": {\n    \"url\": \"https://relayguard.vercel.app/api/paid-resource\",\n    \"description\": \"Unlock the Mezo MUSD Agent Integration Brief — pay $0.001 in MUSD\",\n    \"mimeType\": \"application/json\"\n  },\n  \"accepts\": [\n    {\n      \"scheme\": \"exact\",\n      \"network\": \"eip155:31611\",\n      \"amount\": \"1000000000000000\",\n      \"asset\": \"0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503\",\n      \"payTo\": \"0x840E5bBF20D725f581752f8A4021ADd730550d47\",\n      \"maxTimeoutSeconds\": 60,\n      \"extra\": {\n        \"name\": \"Mezo USD\",\n        \"version\": \"1\",\n        \"assetTransferMethod\": \"permit2\"\n      }\n    }\n  ]\n}"
+}

@@ -1,0 +1,50 @@
+{
+  "sourceCommit": "f74c1a4",
+  "delivery": "2026-11-05",
+  "files": {
+    "output/hackathon/screens/01-merchant-workspace.png": {
+      "bytes": 350588,
+      "sha256": "0e9e52cbd5d8d0df4eb02bc9c0cf9769f587249106fd7f361fcea85a73b349c1"
+    },
+    "output/hackathon/screens/02-invoice-creation.png": {
+      "bytes": 238082,
+      "sha256": "fa3ef15d8bb39f84efecc472fb9bab3c200719c68cc9b1ad6c972ea0b56ae63a"
+    },
+    "output/hackathon/screens/03-mobile-checkout.png": {
+      "bytes": 254986,
+      "sha256": "5aae5a90fdede0cd9bb30f0a693df793b5e7de99b7cde2b4bbf59ce5c11f66e0"
+    },
+    "output/hackathon/screens/04-paid-api.png": {
+      "bytes": 232902,
+      "sha256": "8942475d101a6467184087352d2f9c368cfbc673b657933faa4db72ba52286af"
+    },
+    "output/hackathon/screens/05-treasury.png": {
+      "bytes": 278959,
+      "sha256": "8a535d13e3084536f86ee1e335c8ad7d7f25623e8a40a17a65ef81f09ca4e99b"
+    },
+    "output/hackathon/screens/06-policy-controls.png": {
+      "bytes": 276880,
+      "sha256": "2ed8d24a008397e59bf5acd337286d4e75dd033b9e233209d9cb36f27437d003"
+    },
+    "output/hackathon/screens/07-settlement-evidence.png": {
+      "bytes": 234594,
+      "sha256": "fa7e0446de77dc6206cfb61cafe29368ca427221a6bf01135fd119f8e1798f63"
+    },
+    "output/hackathon/deck/relayguard-wave2.pdf": {
+      "bytes": 667699,
+      "sha256": "15c9a295240cf773efe233494899ddebd5623261d5355928aca591400240c26e"
+    },
+    "output/hackathon/video/relayguard-demo.mp4": {
+      "bytes": 7111382,
+      "sha256": "c7ee3e71f3e24ef3c76099fe26f3cbcc08228fe791b057ee679333aaa7341fec"
+    },
+    "output/hackathon/video/relayguard-demo.srt": {
+      "bytes": 2719,
+      "sha256": "bd92d5409afe8f699c0af419a7d7baf69dc9adcd459661ef323c10f22211e1e8"
+    },
+    "output/hackathon/video/cover.png": {
+      "bytes": 202540,
+      "sha256": "203055ae78fda204d9964aee11c68fa3ba07e8015b0b0b795c7af668cb0102c5"
+    }
+  }
+}

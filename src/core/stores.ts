@@ -50,6 +50,7 @@ export interface AuthorizationStore {
 }
 
 export interface CheckoutStore {
+  consumeRequestLimit(key: string, limit: number, windowMs: number, now?: number): Awaitable<{ allowed: boolean; retryAfterSeconds: number }>;
   getMerchantProfile(merchantUserId: string): Awaitable<MerchantProfile | undefined>;
   updateMerchantName(merchantUserId: string, merchantName: string): Awaitable<boolean>;
   createWalletChallenge(input: {

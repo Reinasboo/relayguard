@@ -171,7 +171,8 @@ test("Mezo verifies MUSD from the exact receipt Transfer event without a transac
     response.end(JSON.stringify({
       jsonrpc: "2.0",
       id: rpcRequest.id,
-      result: rpcRequest.method === "eth_getTransactionReceipt" ? receipt : null
+      result: rpcRequest.method === "eth_getTransactionReceipt" ? receipt :
+        rpcRequest.method === "eth_getBlockByHash" ? { hash: receipt.blockHash, number: "0x1", timestamp: "0x6553f100", transactions: [] } : null
     }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -192,6 +193,7 @@ test("Mezo verifies MUSD from the exact receipt Transfer event without a transac
     assert.equal(evidence.value.sender, payerAddress);
     assert.equal(evidence.value.recipient.toLowerCase(), recipientAddress);
     assert.equal(evidence.value.amountAtomic, amount.toString());
+    assert.equal(evidence.value.settledAt, 1700000000000);
   }
-  assert.deepEqual(methods, ["eth_getTransactionReceipt"]);
+  assert.deepEqual(methods, ["eth_getTransactionReceipt", "eth_getBlockByHash"]);
 });

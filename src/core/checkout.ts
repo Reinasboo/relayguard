@@ -73,6 +73,12 @@ export class CheckoutService implements CheckoutStore {
         merchant_address TEXT,
         wallet_verified INTEGER NOT NULL DEFAULT 0 CHECK (wallet_verified IN (0, 1))
       );
+      CREATE TABLE IF NOT EXISTS request_limits (
+        key TEXT PRIMARY KEY,
+        window_start INTEGER NOT NULL,
+        request_count INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS request_limits_expiry ON request_limits (window_start);
       CREATE TABLE IF NOT EXISTS merchant_wallet_challenges (
         id TEXT PRIMARY KEY,
         merchant_user_id TEXT NOT NULL,
@@ -116,6 +122,8 @@ export class CheckoutService implements CheckoutStore {
       );
       CREATE INDEX IF NOT EXISTS checkout_invoices_recent
         ON checkout_invoices (created_at DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS checkout_invoices_transaction_identity
+        ON checkout_invoices (lower(transaction_reference)) WHERE transaction_reference IS NOT NULL;
     `);
     const columns = this.database
       .prepare("PRAGMA table_info(checkout_invoices)")
@@ -125,6 +133,17 @@ export class CheckoutService implements CheckoutStore {
         "ALTER TABLE checkout_invoices ADD COLUMN merchant_user_id TEXT NOT NULL DEFAULT 'local-demo'"
       );
     }
+  }
+
+  consumeRequestLimit(key: string, limit: number, windowMs: number, now = Date.now()) {
+    this.ensureOpen();
+    const start = Math.floor(now / windowMs) * windowMs;
+    this.database.prepare("DELETE FROM request_limits WHERE window_start < ?").run(start - windowMs);
+    const row = this.database.prepare(`INSERT INTO request_limits (key, window_start, request_count) VALUES (?, ?, 1)
+      ON CONFLICT(key) DO UPDATE SET
+        request_count = CASE WHEN request_limits.window_start = excluded.window_start THEN request_limits.request_count + 1 ELSE 1 END,
+        window_start = excluded.window_start RETURNING request_count`).get(key, start) as { request_count: number };
+    return { allowed: row.request_count <= limit, retryAfterSeconds: Math.max(1, Math.ceil((start + windowMs - now) / 1000)) };
   }
 
   getMerchantProfile(merchantUserId: string): MerchantProfile | undefined {
@@ -401,6 +420,8 @@ export class CheckoutService implements CheckoutStore {
 
   list(merchantUserId: string, limit = 50): readonly CheckoutInvoice[] {
     this.ensureOpen();
+    this.database.prepare("UPDATE checkout_invoices SET status = 'expired' WHERE merchant_user_id = ? AND status = 'open' AND expires_at <= ?")
+      .run(merchantUserId, Date.now());
     const rows = this.database
       .prepare("SELECT * FROM checkout_invoices WHERE merchant_user_id = ? ORDER BY created_at DESC LIMIT ?")
       .all(merchantUserId, Math.max(1, Math.min(100, limit)));
@@ -438,7 +459,7 @@ export class CheckoutService implements CheckoutStore {
          SET status = 'submitted', transaction_reference = ?
          WHERE id = ? AND status = 'authorized' AND authorization_id = ?`
       )
-      .run(reference, id, authorizationId);
+      .run(reference.toLowerCase(), id, authorizationId);
     if (Number(update.changes) !== 1) {
       throw new Error("Checkout invoice was already submitted.");
     }

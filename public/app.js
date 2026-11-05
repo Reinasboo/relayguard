@@ -2090,6 +2090,9 @@ async function payCheckout() {
     const amountHex = BigInt(checkoutInvoice.amountAtomic).toString(16).padStart(64, "0");
     const addressHex = checkoutInvoice.merchantAddress.slice(2).toLowerCase().padStart(64, "0");
     const data = `0xa9059cbb${addressHex}${amountHex}`;
+    if (Date.now() >= checkoutInvoice.expiresAt) {
+      throw new Error("This invoice expired before payment. Ask the merchant for a new payment link. No payment was submitted.");
+    }
     button.textContent = "Confirm in wallet…";
     byId("checkout-wallet-state").textContent = "Review the exact MUSD transfer in your wallet and confirm to submit it to Mezo Testnet.";
     const transactionHash = await provider.request({

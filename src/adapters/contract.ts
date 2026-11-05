@@ -26,6 +26,8 @@ export interface PreparedPayment {
 }
 
 export interface SettlementEvidence {
+  /** On-chain inclusion time in milliseconds, distinct from the time we queried RPC. */
+  readonly settledAt?: number;
   readonly state: "pending" | "confirmed" | "failed" | "unknown";
   readonly reference?: string;
   readonly asset?: string;

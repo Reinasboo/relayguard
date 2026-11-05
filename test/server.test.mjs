@@ -30,7 +30,11 @@ test("HTTP boundaries and checkout retry/recovery use real stores with mocked ex
           result = data.startsWith("0x95d89b41") ? encodeAbiParameters([{ type: "string" }], ["MUSD"])
             : data.startsWith("0x313ce567") ? encodeAbiParameters([{ type: "uint8" }], [18])
             : encodeAbiParameters([{ type: "uint256" }], [1000n * 10n ** 18n]);
-        } else if (request.method === "eth_getTransactionReceipt") result = null;
+        } else if (request.method === "eth_getTransactionByHash") result = {
+          hash: request.params[0], from: account.address, to: process.env.MEZO_TOKEN_ADDRESS,
+          input: '0xa9059cbb' + account.address.slice(2).toLowerCase().padStart(64,'0') + (10n**18n).toString(16).padStart(64,'0'),
+          value: '0x0', gas: '0x10000', nonce: '0x0', type: '0x2', blockHash: null, blockNumber: null, transactionIndex: null
+        }; else if (request.method === "eth_getTransactionReceipt") result = null;
         else throw new Error(`Unexpected mock RPC: ${request.method}`);
         return { jsonrpc: "2.0", id: request.id, result };
       };
